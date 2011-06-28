@@ -1,0 +1,11 @@
+build/
+CMakeFiles
+CMakeCache.txt
+libpyrbfnet.so librbfnetwork.so
+.cproject
+.project
+.pydevproject
+.settings
+lib*.so
+*.pyc
+cmake_install.cmake
