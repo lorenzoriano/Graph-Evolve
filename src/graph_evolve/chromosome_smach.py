@@ -14,21 +14,21 @@ def convert_chromosome_smach(chromosome,
     with sm:
         for src_node_number, node in enumerate(chromosome.nodes):
             transitions = {"timeout":"failure"}
-            state_name = names_mapping[node.id] + "_" + str(src_node_number)
+            state_name = names_mapping[node.type_id] + "_" + str(src_node_number)
             edges = node.out_edges
             for edge_number, edge in enumerate(edges):
-                dest_state = (names_mapping[chromosome.nodes[edge].id] +
-                              "_" + str(edge))                            
-                state_output = (transitions_mapping[names_mapping[node.id]]
+                dest_state = (names_mapping[chromosome[edge].type_id] +
+                              "_" + str(edge))        
+                state_output = (transitions_mapping[names_mapping[node.type_id]]
                                 [edge_number] )
                 transitions[state_output] = dest_state
-            state_class = classes_mapping[names_mapping[node.id]]
-            if names_mapping[node.id] == "CheckSuccess":
+            state_class = classes_mapping[names_mapping[node.type_id]]
+            if names_mapping[node.type_id] == "CheckSuccess":
                 transitions={'success': 'success',
                              'failure': 'failure',
                              'timeout': 'failure'
                 }                               
-            remapping = data_mapping[names_mapping[node.id]]
+            remapping = data_mapping[names_mapping[node.type_id]]
             if len(node.params):
                 state = state_class(node.params[:])
             else:
@@ -47,13 +47,13 @@ def convert_chromosome_pygraphviz(chromosome,
     for src_node_number, node in enumerate(chromosome.nodes):        
         transitions = []
         labels = []
-        state_name = names_mapping[node.id] + "_" + str(src_node_number)
+        state_name = names_mapping[node.type_id] + "_" + str(src_node_number)
         G.add_node(state_name)
         edges = node.out_edges
         for edge_number, edge in enumerate(edges):
-            dest_state = (names_mapping[chromosome.nodes[edge].id] +
+            dest_state = (names_mapping[chromosome[edge].type_id] +
                           "_" + str(edge))                            
-            state_output = (transitions_mapping[names_mapping[node.id]]
+            state_output = (transitions_mapping[names_mapping[node.type_id]]
                             [edge_number] )
             transitions.append(dest_state)
             labels.append(state_output)
@@ -104,7 +104,8 @@ def test():
     start = time.time()
     chromosome = graph_genome.GraphGenome(num_nodes, 
                                           node_degrees,
-                                          nodes_params) 
+                                          nodes_params)
+    chromosome.initialize()
     G = convert_chromosome_pygraphviz(chromosome, names_mapping, 
                                       transitions_mapping)
     G.write("/home/pezzotto/tmp/tmp.dot")

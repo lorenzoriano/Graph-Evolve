@@ -104,13 +104,13 @@ if __name__ == "__main__":
     ga = GSimpleGA.GSimpleGA(genome)
 #    print "STOPPING ELITISM"
     ga.setElitism(True)
-    ga.setElitismReplacement(50)
+    ga.setElitismReplacement(1)
     
     ga.selector.set(Selectors.GRouletteWheel)
     ga.stepCallback.set(stepCallback)
     
-    ga.setGenerations(1000)
-    ga.setPopulationSize(1000)
+    ga.setGenerations(10)
+    ga.setPopulationSize(10)
     ga.setCrossoverRate(0.2)
     ga.setMutationRate(0.2)
 #    ga.setMinimax(Consts.minimaxType["maximize"])
