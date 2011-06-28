@@ -59,10 +59,11 @@ class TestEvolution(unittest.TestCase):
         genome = graph_genome.GraphGenome(5, out_degrees, node_params)
     #    genome.evaluator.set(eval_func)
         genome.evaluator.set(follow_graph)
+        genome.setParams(p_del=1.0, p_add=0.1)
         
         ga = GSimpleGA.GSimpleGA(genome)
-    #    print "STOPPING ELITISM"
-        ga.setElitism(True)
+        print "STOPPING ELITISM"
+        ga.setElitism(False)
         
         ga.selector.set(Selectors.GRouletteWheel)
         

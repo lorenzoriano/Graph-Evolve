@@ -78,7 +78,7 @@ class FunctionalTests(unittest.TestCase):
         all_nodes = [node for node in genome.nodes]
         self.assertEqual(len(all_nodes), len(genome))
         sanity_checks(self, genome)
-        
+    
 
 class TestMutation(unittest.TestCase):
     def setUp(self):
@@ -208,14 +208,14 @@ class TestCrossover(unittest.TestCase):
             sanity_checks(self, sister)
             sanity_checks(self, brother)
                                 
-            sister.mutate(pmut=0.5)       
-            brother.mutate(pmut=0.5)
+            sister.mutate(pmut=0.5, ga_engine = None)
+            brother.mutate(pmut=0.5, ga_engine = None)
             
             sanity_checks(self, sister)
             sanity_checks(self, brother)
             
-            dad = brother.clone()
-            mom = sister.clone()
+            dad = brother
+            mom = sister
             
     def test_fixed(self):
         G1 = nx.MultiDiGraph()        

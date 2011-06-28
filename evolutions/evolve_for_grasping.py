@@ -105,6 +105,7 @@ if __name__ == "__main__":
 #    print "STOPPING ELITISM"
     ga.setElitism(True)
     ga.setElitismReplacement(1)
+    ga.setMultiProcessing(True, True)
     
     ga.selector.set(Selectors.GRouletteWheel)
     ga.stepCallback.set(stepCallback)

@@ -4,8 +4,36 @@ import pyevolve.Mutators
 import pyevolve.Initializators
 
 import networkx as nx
+from distutils import version
+
+if version.LooseVersion(nx.__version__) < version.LooseVersion("1.5"):
+    raise RuntimeError("Networkx should have at least version 1.5")
+
 import random
 import exceptions
+
+class NodeRepresentation():
+    '''
+    An object instance of NodeRepresentation will be created on the fly by
+    GraphGenome to compact information about a single node. It has no other
+    use apart from being a representation
+    
+    '''
+    def __init__(self):
+        self.number = None
+        self.type_id = None
+        self.out_edges = []
+        self.params = None
+        
+    def __repr__(self):
+        out_str = "[%d : %s" % (self.type_id, 
+                                repr(self.out_edges), 
+                                )
+        if len(self.params.genomeList):
+            out_str += "(%s)] " % repr(self.params.genomeList)
+        else:
+            out_str += "] "
+        return out_str
 
 def get_bfs_neighbours(G, source, n):
     
@@ -69,11 +97,9 @@ def graph_crossover(_, **args):
         
         #re-wiring
         source = subnodes_G1[i]
-        for e in subgraph_G2.out_edges_iter(subnodes_G2[i], data = True):
-            
+        for e in subgraph_G2.out_edges_iter(subnodes_G2[i], data = True):            
             dest = subnodes_G1[subnodes_G2.index(e[1])]
-            attr = e[2]
-            
+            attr = e[2]            
             G1.add_edge(source, dest, attr_dict = attr)
         
         source = subnodes_G2[i]
@@ -87,29 +113,47 @@ def graph_crossover(_, **args):
     brother.fix_out_edges(subnodes_G2)
     return (sister, brother)
 
-
-class NodeRepresentation():
+def graph_mutator(genome, **args):
     '''
-    An object instance of NodeRepresentation will be created on the fly by
-    GraphGenome to compact information about a single node. It has no other
-    use apart from being a representation
+    Mutate the whole gene
+    '''
+    pmut = args["pmut"]
+    p_add = genome.getParam("p_add", 0)
+    p_del = genome.getParam("p_del", 0)
     
-    '''
-    def __init__(self):
-        self.number = None
-        self.type_id = None
-        self.out_edges = []
-        self.params = None
+    mutated = 0
+    #in-place mutations
+    for node in genome.graph:
+        if random.random() < pmut:
+            mutated += 1
+            genome.mutate_node(node, pmut)
+            
+    #adding a node
+    if random.random() < p_add:
+        genome.add_random_node()
+    #removing a node
+    if random.random() < p_del:
+        genome.remove_random_node()
         
-    def __repr__(self):
-        out_str = "[%d : %s" % (self.type_id, 
-                                repr(self.out_edges), 
-                                )
-        if len(self.params.genomeList):
-            out_str += "(%s)] " % repr(self.params.genomeList)
-        else:
-            out_str += "] "
-        return out_str
+    return mutated
+
+def graph_initializer(genome, **_):
+    for node in xrange(genome.initial_num_nodes):
+            
+        type_id = random.randint(0,  genome.num_node_types)
+        num_params = genome.node_params[type_id]
+        genome.graph.add_node(node, type_id = type_id, 
+                              parameters=pyevolve.G1DList.G1DList(num_params))
+        #initializing the properties of a node
+        genome.setup_node(node)            
+        
+    #creating the edges
+    for node in xrange(genome.initial_num_nodes):
+        #every node has a fixed set of out_edges
+        type_id = genome.graph.node[node]["type_id"]
+        for n in xrange(genome.node_degrees[type_id]):
+            destination = random.sample(genome.graph.nodes(), 1)[0]
+            genome.graph.add_edge(node, destination, action_number=n)
 
 class GraphGenome(pyevolve.GenomeBase.GenomeBase):
     
@@ -131,34 +175,15 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         self.node_degrees = node_degrees
         self.node_params = node_params
         self.num_node_types = len(node_degrees) - 1
-        self.__initial_num_nodes = num_nodes        
+        self.initial_num_nodes = num_nodes        
         self.__graph = nx.MultiDiGraph()
         self.generation = 0
         
         self.crossover.set(graph_crossover)
-        self.mutator.set(self.mutate)
-        self.initializator.set(self.__initialize)
-        
-    def __initialize(self, _, **__):
-        #first step: creating the nodes
-        for node in xrange(self.__initial_num_nodes):
-            
-            type_id = random.randint(0,  self.num_node_types)
-            num_params = self.node_params[type_id]
-            self.graph.add_node(node, type_id = type_id, 
-                                  parameters=pyevolve.G1DList.G1DList(num_params))
-            #initializing the properties of a node
-            self.__setup_node(node)            
-        
-        #creating the edges
-        for node in xrange(self.__initial_num_nodes):
-            #every node has a fixed set of out_edges
-            type_id = self.graph.node[node]["type_id"]
-            for n in xrange(self.node_degrees[type_id]):
-                destination = random.sample(self.graph.nodes(), 1)[0]
-                self.graph.add_edge(node, destination, action_number=n)
-        
-    def __setup_node(self, node):
+        self.mutator.set(graph_mutator)
+        self.initializator.set(graph_initializer)
+
+    def setup_node(self, node):
         '''
         Initialize the parameters list for a node
         @param node:
@@ -170,30 +195,6 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
                          gauss_mu = 0.0, gauss_sigma=0.05)
         params.initialize()
                 
-    def mutate(self,  **args):        
-        '''
-        Mutate the whole gene
-        '''
-        pmut = args["pmut"]
-        p_add = self.getParam("p_add", 0)
-        p_del = self.getParam("p_del", 0)
-        
-        mutated = 0
-        #in-place mutations
-        for node in self.graph:
-            if random.random() < pmut:
-                mutated += 1
-                self.mutate_node(node, pmut)
-                
-        #adding a node
-        if random.random() < p_add:
-            self.add_random_node()
-        #removing a node
-        if random.random() < p_del:
-            self.remove_random_node()
-            
-        return mutated
-        
     def mutate_node(self, node, pmut):
         '''
         Mutate a single node
@@ -213,7 +214,7 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
             num_params = self.node_params[type_id]
             attrs["parameters"] = pyevolve.G1DList.G1DList(num_params)
             self.graph.node[node] = attrs
-            self.__setup_node(node)
+            self.setup_node(node)
             
             #now remove and recreate all the edges
             self.graph.remove_edges_from(self.graph.out_edges_iter(node))
@@ -254,7 +255,7 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         self.graph.add_node(node, type_id = type_id, 
                               parameters=pyevolve.G1DList.G1DList(num_params))
         #initializing the properties of a node
-        self.__setup_node(node)
+        self.setup_node(node)
         
         #adding the edges
         for n in xrange(self.node_degrees[type_id]):
@@ -357,9 +358,9 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         '''
         Clones self into a new genome
         '''
-        if len(self) == 0:
-            self.__initialize(self)
-        newcopy = GraphGenome(len(self.graph),
+#        if len(self) == 0:
+#            self.initialize()
+        newcopy = GraphGenome(self.initial_num_nodes,
                               self.node_degrees,
                               self.node_params)
         self.copy(newcopy)
