@@ -336,6 +336,11 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
             out_str += "%s " % repr(self.get_node(i))
         return out_str
     
+    @property
+    def nodes(self):
+        for node in self.graph.nodes_iter():
+            yield self.get_node(node)
+    
     def copy(self, genome):
         '''
         Copies self into genome.

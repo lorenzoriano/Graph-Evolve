@@ -60,11 +60,30 @@ def sanity_check_node_zero(tester, genome):
     
     node = genome[0] 
 
+class FunctionalTests(unittest.TestCase):
+    def setUp(self):
+        random.seed()
+        self.num_types = 10
+        self.nodes_degrees = [5 for _ in xrange(self.num_types)]
+        self.nodes_params = [0] * len(self.nodes_degrees)
+        self.num_node_types = len(self.nodes_degrees)
+    
+    def test_iterator(self):
+        num_nodes = 100
+        genome = graph_genome.GraphGenome(num_nodes, 
+                                  self.nodes_degrees, 
+                                  self.nodes_params)
+
+        genome.initialize()
+        all_nodes = [node for node in genome.nodes]
+        self.assertEqual(len(all_nodes), len(genome))
+        sanity_checks(self, genome)
+        
 
 class TestMutation(unittest.TestCase):
     def setUp(self):
         random.seed()
-        self.num_types = 1
+        self.num_types = 10
         self.nodes_degrees = [5 for _ in xrange(self.num_types)]
         self.nodes_params = [0] * len(self.nodes_degrees)
         self.num_node_types = len(self.nodes_degrees)
@@ -248,8 +267,6 @@ class TestCrossover(unittest.TestCase):
         sanity_checks(self, genome1)
         sanity_checks(self, genome2)
         
-        print "\nGenome1:\n", genome1
-        print "\nGenome2:\n", genome2
-        
-        
+        bogus = str(genome1)
+        bogus = str(genome2)
         
