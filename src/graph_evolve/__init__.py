@@ -1,4 +1,3 @@
 import chromosome_smach
 import graph_genome
 import smach_grasp
-import rnn
