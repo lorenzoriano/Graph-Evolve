@@ -15,9 +15,9 @@ from structural_tests import sanity_checks
 def follow_graph(chromosome, **args):
     
     max_steps = 20
-    goal = 5.0
+    goal = 10.0
     
-    node_id = 0
+    node_id = chromosome.starting_node
     pose = 0.0
     step = 0
     while step != max_steps:
@@ -56,10 +56,10 @@ class TestEvolution(unittest.TestCase):
     def test_evolution(self):        
         out_degrees=[1]
         node_params = [1]
-        genome = graph_genome.GraphGenome(5, out_degrees, node_params)
+        genome = graph_genome.GraphGenome(10, out_degrees, node_params)
     #    genome.evaluator.set(eval_func)
         genome.evaluator.set(follow_graph)
-        genome.setParams(p_del=1.0, p_add=0.1)
+        genome.setParams(p_del=0.1, p_add=0.1)
         
         ga = GSimpleGA.GSimpleGA(genome)
         print "STOPPING ELITISM"

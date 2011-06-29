@@ -22,13 +22,14 @@ class NodeRepresentation():
     def __init__(self):
         self.number = None
         self.type_id = None
-        self.out_edges = []
+        self.out_edges = {}
         self.params = None
         
     def __repr__(self):
-        out_str = "[%d : %s" % (self.type_id, 
-                                repr(self.out_edges), 
-                                )
+        out_str = "[%d (id: %d) : %s" % (self.number,
+                                         self.type_id,
+                                         repr(self.out_edges), 
+                                         )
         if len(self.params.genomeList):
             out_str += "(%s)] " % repr(self.params.genomeList)
         else:
@@ -134,7 +135,11 @@ def graph_mutator(genome, **args):
     #removing a node
     if random.random() < p_del:
         genome.remove_random_node()
-        
+    
+    #changing the starting node
+    if (random.random() < pmut) or (genome.starting_node not in genome.graph):
+        genome.starting_node = random.sample(genome.graph.nodes(), 1)[0]
+    
     return mutated
 
 def graph_initializer(genome, **_):
@@ -154,6 +159,9 @@ def graph_initializer(genome, **_):
         for n in xrange(genome.node_degrees[type_id]):
             destination = random.sample(genome.graph.nodes(), 1)[0]
             genome.graph.add_edge(node, destination, action_number=n)
+            
+    #setting up the starting node
+    genome.starting_node = random.sample(genome.graph.nodes(), 1)[0]
 
 class GraphGenome(pyevolve.GenomeBase.GenomeBase):
     
@@ -178,6 +186,7 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         self.initial_num_nodes = num_nodes        
         self.__graph = nx.MultiDiGraph()
         self.generation = 0
+        self.starting_node = 0
         
         self.crossover.set(graph_crossover)
         self.mutator.set(graph_mutator)
@@ -205,7 +214,6 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         
         #Changing a node id is very involved, so the probability of this
         #to happen is squared
-#        print "----------MUTATING--------------"
         if random.random() < pmut:
             #The attributes change
             attrs = {}
@@ -328,13 +336,18 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         node.number = i
         node.type_id = self.graph.node[i]["type_id"]
         node.params = self.graph.node[i]["parameters"]
-        node.out_edges = [v for (_, v) in self.graph.out_edges_iter(i)]        
+        for (_, v, d) in self.graph.out_edges_iter(i, data=True):
+            node.out_edges[ d['action_number'] ] = v
         return node
     
     def __repr__(self):
         out_str = ""
         for i in self.graph.nodes():
-            out_str += "%s " % repr(self.get_node(i))
+            if i == self.starting_node:
+                out_str += "!!%s " % repr(self.get_node(i))
+            else:
+                out_str += "%s " % repr(self.get_node(i))
+            
         return out_str
     
     @property

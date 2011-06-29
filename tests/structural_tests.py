@@ -256,6 +256,11 @@ class TestCrossover(unittest.TestCase):
         sanity_checks(self, genome1)
         sanity_checks(self, genome2)
         
+        bogus = str(genome1)
+        print bogus
+        bogus = str(genome2)
+        print bogus
+        
         subnodes_G1 = [2,0,5]
         subnodes_G2 = [3,1,4]
         
@@ -266,7 +271,5 @@ class TestCrossover(unittest.TestCase):
                                                          subnodes_G2 = subnodes_G2)
         sanity_checks(self, genome1)
         sanity_checks(self, genome2)
-        
-        bogus = str(genome1)
-        bogus = str(genome2)
+
         

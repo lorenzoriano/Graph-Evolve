@@ -12,16 +12,18 @@ def convert_chromosome_smach(chromosome,
     sm = smach.StateMachine(outcomes=['success', "failure"])
     
     with sm:
-        for src_node_number, node in enumerate(chromosome.nodes):
+        for node in chromosome.nodes:
             transitions = {"timeout":"failure"}
-            state_name = names_mapping[node.type_id] + "_" + str(src_node_number)
+            state_name = names_mapping[node.type_id] + "_" + str(node.number)
             edges = node.out_edges
-            for edge_number, edge in enumerate(edges):
+            
+            for edge_number, edge in edges.iteritems():
                 dest_state = (names_mapping[chromosome[edge].type_id] +
                               "_" + str(edge))        
                 state_output = (transitions_mapping[names_mapping[node.type_id]]
                                 [edge_number] )
                 transitions[state_output] = dest_state
+            
             state_class = classes_mapping[names_mapping[node.type_id]]
             if names_mapping[node.type_id] == "CheckSuccess":
                 transitions={'success': 'success',
@@ -36,6 +38,10 @@ def convert_chromosome_smach(chromosome,
             smach.StateMachine.add(state_name, state, 
                                    transitions = transitions,
                                    remapping = remapping)
+        node = chromosome[chromosome.starting_node]
+        state_name = names_mapping[node.type_id] + "_" + str(node.number)
+        sm.set_initial_state([state_name])
+
     return sm
 
 import pygraphviz as pgv
@@ -44,13 +50,14 @@ def convert_chromosome_pygraphviz(chromosome,
                                   names_mapping, 
                                   transitions_mapping):
     G = pgv.AGraph(strict = False, directed=True)
-    for src_node_number, node in enumerate(chromosome.nodes):        
+    for node in chromosome.nodes:        
         transitions = []
         labels = []
-        state_name = names_mapping[node.type_id] + "_" + str(src_node_number)
+        state_name = names_mapping[node.type_id] + "_" + str(node.number)
         G.add_node(state_name)
         edges = node.out_edges
-        for edge_number, edge in enumerate(edges):
+
+        for edge_number, edge in edges.iteritems():
             dest_state = (names_mapping[chromosome[edge].type_id] +
                           "_" + str(edge))                            
             state_output = (transitions_mapping[names_mapping[node.type_id]]
@@ -59,6 +66,10 @@ def convert_chromosome_pygraphviz(chromosome,
             labels.append(state_output)
         for t,l in itertools.izip(transitions, labels):
             G.add_edge(state_name, t, label=l)
+    
+    node = chromosome[chromosome.starting_node]
+    state_name = names_mapping[node.type_id] + "_" + str(node.number)
+    G.get_node(state_name).attr["color"] = "red"
     return G
     
 
@@ -97,7 +108,7 @@ def test():
                     "CheckSuccess": default_mapping,
                     "MoveGripperToParam": default_mapping}
     
-    num_nodes = 40
+    num_nodes = 20
     node_degrees = [1,2,2,0,2]
     nodes_params = [0,0,0,0,3]
     
