@@ -2,6 +2,7 @@ from mpi4py import MPI
 from FunctionSlot import FunctionSlot
 import Consts
 from random import choice as rand_choice
+import Selectors
 
 class MPIMigrator(object):
     selector = None
@@ -20,6 +21,7 @@ class MPIMigrator(object):
         
         self.comm = MPI.COMM_WORLD
         self.pid = self.comm.rank
+        self.best_selector = Selectors.GRankSelector
         
         #now this is fixed
         if self.pid == 0:
@@ -27,9 +29,14 @@ class MPIMigrator(object):
         else:
             self.source = self.comm.rank - 1
         self.dest = (self.comm.rank +1) % (self.comm.size)
+        
+        self.all_stars = None
 
     def isReady(self):
         """ Returns true if is time to migrate """
+        
+        if self.GAEngine.getCurrentGeneration() == 0:
+            return False
         
         if self.GAEngine.getCurrentGeneration() % self.nMigrationRate == 0:
             return True
@@ -130,15 +137,30 @@ class MPIMigrator(object):
         pool = [self.select() for i in xrange(num_individuals)]
         return pool
 
+    def gather_bests(self):
+        '''
+        Collect all the best individuals from the various populations. The
+        result is stored in process 0
+        '''
+        best_guy = self.best_selector(self.GAEngine.internalPop, 
+                                      popID=self.GAEngine.currentGeneration)
+        
+        self.all_stars = self.comm.gather(sendobj = best_guy, root = 0)
+                
+
     def exchange(self):
         
         if not self.isReady(): 
             return
         
         pool_to_send = self.selectPool(self.getNumIndividuals())
-        self.comm.isend(pool_to_send, dest = self.dest, tag=0)
+        pool_received  = self.comm.sendrecv(sendobj=pool_to_send, 
+                                            dest=self.dest, 
+                                            sendtag=0, 
+                                            recvobj=None, 
+                                            source=self.source, 
+                                            recvtag=0)
         
-        pool_received = self.comm.recv(source = self.source, tag = 0)
         population = self.GAEngine.getPopulation()
 
         pool = pool_received
@@ -150,3 +172,5 @@ class MPIMigrator(object):
         
             # replace the worst
             population[len(population)-1-i] = choice
+        
+        self.gather_bests()

@@ -47,7 +47,7 @@ def convert_chromosome_smach(chromosome,
 try:
     import pygraphviz as pgv
 except ImportError:
-    print "PyGraphviz is not present, conversion to dot will not be available"
+    pass
 
 import itertools
 def convert_chromosome_pygraphviz(chromosome, 

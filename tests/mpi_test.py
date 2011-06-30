@@ -48,6 +48,15 @@ def eval_func(chromosome, **args):
     p_sum = sum ([node.params[0] for node in chromosome.nodes]) / len(G)
     return c_sum * p_sum
 
+def stepCallback(ga_engine):
+    comm = MPI.COMM_WORLD
+    if comm.rank == 0:
+        migrator = ga_engine.migrationAdapter
+        if migrator.all_stars is not None:
+            print "all_stars: ", [i.score for i in migrator.all_stars]
+            
+            print "Best of best: ", max(migrator.all_stars).score
+
 def test_evolution():        
     out_degrees=[1]
     node_params = [1]
@@ -57,8 +66,8 @@ def test_evolution():
     genome.setParams(p_del=0.1, p_add=0.1)
     
     ga = GSimpleGA.GSimpleGA(genome)
-    print "STOPPING ELITISM"
-    ga.setElitism(False)
+#    print "STOPPING ELITISM"
+    ga.setElitism(True)
     
     ga.selector.set(Selectors.GRouletteWheel)
     
@@ -68,13 +77,14 @@ def test_evolution():
     ga.setMutationRate(0.5)
 #    ga.setMinimax(Consts.minimaxType["maximize"])
     ga.setMinimax(Consts.minimaxType["minimize"])
+    ga.stepCallback.set(stepCallback)
     
     comm = MPI.COMM_WORLD
     if comm.size > 1:
         migrator = mpi_migration.MPIMigrator()
         migrator.setGAEngine(ga)
-        migrator.setNumReplacement(10)
-        migrator.setMigrationRate(5)
+        migrator.setNumReplacement(1)
+        migrator.setMigrationRate(1)
         
         ga.setMigrationAdapter(migrator)    
     
