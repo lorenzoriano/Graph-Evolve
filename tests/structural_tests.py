@@ -53,12 +53,24 @@ def sanity_check_node_parameters(tester, genome):
 
 def sanity_check_node_zero(tester, genome):
     '''
-    Node zero should never be deleted
+    Starting node
     @param tester:
     @param genome:
     '''
     
-    node = genome[0] 
+    node = genome[genome.starting_node]
+
+def sanity_check_all_connected(tester, genome):
+    
+    tree = nx.dfs_tree(genome.graph, source=genome.starting_node)
+    
+    if len(tree) != len(genome.graph):
+        print "STARTING: ", genome.starting_node
+        print "EDGES: ", genome.graph.edges()
+    
+    tester.assertEqual(len(tree), len(genome.graph))
+    
+    
 
 class FunctionalTests(unittest.TestCase):
     def setUp(self):
@@ -78,7 +90,19 @@ class FunctionalTests(unittest.TestCase):
         all_nodes = [node for node in genome.nodes]
         self.assertEqual(len(all_nodes), len(genome))
         sanity_checks(self, genome)
+
+    def test_puning(self):
+        for _ in xrange(100):
+            num_nodes = 100
+            genome = graph_genome.GraphGenome(num_nodes, 
+                                      self.nodes_degrees, 
+                                      self.nodes_params)
     
+            genome.initialize()
+            genome.prune_non_connected()
+            sanity_checks(self, genome)
+            sanity_check_all_connected(self, genome)
+        
 
 class TestMutation(unittest.TestCase):
     def setUp(self):
@@ -94,11 +118,12 @@ class TestMutation(unittest.TestCase):
                                           self.nodes_degrees, 
                                           self.nodes_params)
         
-        genome.initialize()     
+        genome.initialize()
+        length = len(genome)  
         sanity_checks(self, genome)
         genome.add_random_node()
         
-        self.assertEqual(len(genome), num_nodes + 1)
+        self.assertEqual(len(genome), length + 1)
         sanity_checks(self, genome)
         
     def test_single_remove_node(self):
@@ -110,9 +135,10 @@ class TestMutation(unittest.TestCase):
         sanity_checks(self, genome)
         
         genome.setParams(p_del=0.5, p_add=0.5)
+        length = len(genome)
         genome.remove_random_node()        
         
-        self.assertEqual(len(genome), num_nodes - 1)
+        self.assertEqual(len(genome), length - 1)
         sanity_checks(self, genome)
     
     def mutation_test(self):
@@ -127,6 +153,7 @@ class TestMutation(unittest.TestCase):
         for _ in xrange(100):
             genome.mutate(pmut=0.2)
             sanity_checks(self, genome)
+            sanity_check_all_connected(self, genome)
         
     def test_adding_removing(self):
         num_nodes = 20
@@ -139,12 +166,14 @@ class TestMutation(unittest.TestCase):
         
         for _ in xrange(100):
             
+            length = len(genome)
             genome.remove_random_node()
-            self.assertEqual(len(genome), num_nodes - 1)
+            self.assertEqual(len(genome), length - 1)
             sanity_checks(self, genome)
             
+            length = len(genome)
             genome.add_random_node()
-            self.assertEqual(len(genome), num_nodes)
+            self.assertEqual(len(genome), length + 1)
             sanity_checks(self, genome)            
             
         
@@ -203,16 +232,22 @@ class TestCrossover(unittest.TestCase):
         sanity_checks(self, mom)
         sanity_checks(self, dad)
         
-        for step in xrange(100):
+        for step in xrange(300):
             sister, brother = graph_genome.graph_crossover(None, mom=mom, dad=dad)
             sanity_checks(self, sister)
             sanity_checks(self, brother)
+            
+            sanity_check_all_connected(self, sister)
+            sanity_check_all_connected(self, brother)
                                 
             sister.mutate(pmut=0.5, ga_engine = None)
             brother.mutate(pmut=0.5, ga_engine = None)
             
             sanity_checks(self, sister)
             sanity_checks(self, brother)
+            
+            sanity_check_all_connected(self, sister)
+            sanity_check_all_connected(self, brother)
             
             dad = brother
             mom = sister
@@ -257,19 +292,11 @@ class TestCrossover(unittest.TestCase):
         sanity_checks(self, genome2)
         
         bogus = str(genome1)
-        print bogus
         bogus = str(genome2)
-        print bogus
-        
-        subnodes_G1 = [2,0,5]
-        subnodes_G2 = [3,1,4]
-        
+
         genome1, genome2 =  graph_genome.graph_crossover(None, 
                                                          mom=genome1, 
-                                                         dad=genome2,
-                                                         subnodes_G1 = subnodes_G1,
-                                                         subnodes_G2 = subnodes_G2)
+                                                         dad=genome2)
         sanity_checks(self, genome1)
         sanity_checks(self, genome2)
-
         
