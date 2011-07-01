@@ -159,6 +159,7 @@ if __name__ == "__main__":
         migrator.setGAEngine(ga)
         migrator.setNumReplacement(migration_size)
         migrator.setMigrationRate(migration_rate)
+        migrator.selector.set(Selectors.GRankSelector)
 
         ga.setMigrationAdapter(migrator)
     
