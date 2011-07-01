@@ -93,7 +93,7 @@ def stepCallback(ga_engine):
             if migrator.all_stars is not None:
                 
                 print "All stars: ", [i.score for i in migrator.all_stars]
-                best = max(migrator.all_stars)
+                best = max(migrator.all_stars, key = lambda x:x.score)
                 file = open("bestgenome.txt","w")
                 cPickle.dump(best, file)
                 file.close()
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     num_nodes= 5
     pop_size = 500
     poolsize = int(pop_size / 10.)
-    migration_size = 5
+    migration_size = 1
     migration_rate = 50
     elitism_size = 5
     generations = 1000

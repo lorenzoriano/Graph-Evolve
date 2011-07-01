@@ -314,7 +314,11 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         #one
         candidates = [n for n in self.graph if self.graph.out_degree(n) > 0 
                       and any( (v!=n for _,v in self.graph.out_edges_iter(n)) )]
-        self.starting_node = random.choice(candidates)
+        
+        if len(candidates) == 0: #it might happen.. we simply pick a random one
+            self.starting_node = random.choice(self.graph.nodes()) 
+        else:
+            self.starting_node = random.choice(candidates)
     
     def remove_random_node(self):
         '''
