@@ -18,29 +18,29 @@ class MPIMigrator(object):
         self.nMigrationRate = Consts.CDefGenMigrationRate
         self.nIndividuals = Consts.CDefMigrationNIndividuals
         self.nReplacement = Consts.CDefGenMigrationReplacement
-        
+
         self.comm = MPI.COMM_WORLD
         self.pid = self.comm.rank
         self.best_selector = Selectors.GRankSelector
-        
+
         #now this is fixed
         if self.pid == 0:
             self.source = self.comm.size - 1
         else:
             self.source = self.comm.rank - 1
         self.dest = (self.comm.rank +1) % (self.comm.size)
-        
+
         self.all_stars = None
 
     def isReady(self):
         """ Returns true if is time to migrate """
-        
+
         if self.GAEngine.getCurrentGeneration() == 0:
             return False
-        
+
         if self.GAEngine.getCurrentGeneration() % self.nMigrationRate == 0:
             return True
-        else: 
+        else:
             return False
 
     def getNumReplacement(self):
@@ -124,7 +124,7 @@ class MPIMigrator(object):
         if self.selector.isEmpty():
             return self.GAEngine.select(popID=self.GAEngine.currentGeneration)
         else:
-            for it in self.selector.applyFunctions(self.GAEngine.internalPop, 
+            for it in self.selector.applyFunctions(self.GAEngine.internalPop,
                                                    popID=self.GAEngine.currentGeneration):
                 return it
 
@@ -134,7 +134,7 @@ class MPIMigrator(object):
         :param num_individuals: the number of individuals to select
         :rtype: list with individuals
         """
-        pool = [self.select() for i in xrange(num_individuals)]
+        pool = [self.select() for _ in xrange(num_individuals)]
         return pool
 
     def gather_bests(self):
@@ -142,35 +142,35 @@ class MPIMigrator(object):
         Collect all the best individuals from the various populations. The
         result is stored in process 0
         '''
-        best_guy = self.best_selector(self.GAEngine.internalPop, 
+        best_guy = self.best_selector(self.GAEngine.internalPop,
                                       popID=self.GAEngine.currentGeneration)
-        
+
         self.all_stars = self.comm.gather(sendobj = best_guy, root = 0)
-                
+
 
     def exchange(self):
-        
-        if not self.isReady(): 
+
+        if not self.isReady():
             return
-        
+
         pool_to_send = self.selectPool(self.getNumIndividuals())
-        pool_received  = self.comm.sendrecv(sendobj=pool_to_send, 
-                                            dest=self.dest, 
-                                            sendtag=0, 
-                                            recvobj=None, 
-                                            source=self.source, 
+        pool_received  = self.comm.sendrecv(sendobj=pool_to_send,
+                                            dest=self.dest,
+                                            sendtag=0,
+                                            recvobj=None,
+                                            source=self.source,
                                             recvtag=0)
-        
+
         population = self.GAEngine.getPopulation()
 
         pool = pool_received
         for i in xrange(self.getNumReplacement()):
-            if len(pool) <= 0: 
+            if len(pool) <= 0:
                 break
             choice = rand_choice(pool)
             pool.remove(choice)
-        
+
             # replace the worst
             population[len(population)-1-i] = choice
-        
+
         self.gather_bests()

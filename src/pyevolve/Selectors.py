@@ -11,189 +11,189 @@ import random
 import Consts
 
 def key_raw_score(individual):
-   """ A key function to return raw score
+    """ A key function to return raw score
 
-   :param individual: the individual instance
-   :rtype: the individual raw score
+    :param individual: the individual instance
+    :rtype: the individual raw score
 
-   .. note:: this function is used by the max()/min() python functions
+    .. note:: this function is used by the max()/min() python functions
 
-   """
-   return individual.score
+    """
+    return individual.score
 
 def key_fitness_score(individual):
-   """ A key function to return fitness score, used by max()/min()
+    """ A key function to return fitness score, used by max()/min()
 
-   :param individual: the individual instance
-   :rtype: the individual fitness score
+    :param individual: the individual instance
+    :rtype: the individual fitness score
 
-   .. note:: this function is used by the max()/min() python functions
+    .. note:: this function is used by the max()/min() python functions
 
-   """
-   return individual.fitness
+    """
+    return individual.fitness
 
 
 def GRankSelector(population, **args):
-   """ The Rank Selector - This selector will pick the best individual of
-   the population every time.
-   """
-   count = 0
+    """ The Rank Selector - This selector will pick the best individual of
+    the population every time.
+    """
+    count = 0
 
-   if args["popID"] != GRankSelector.cachePopID:
-      if population.sortType == Consts.sortType["scaled"]:
-         best_fitness = population.bestFitness().fitness
-         for index in xrange(1, len(population.internalPop)):
-            if population[index].fitness == best_fitness:
-               count += 1
-      else:
-         best_raw = population.bestRaw().score
-         for index in xrange(1, len(population.internalPop)):
-            if population[index].score == best_raw:
-               count += 1
+    if args["popID"] != GRankSelector.cachePopID:
+        if population.sortType == Consts.sortType["scaled"]:
+            best_fitness = population.bestFitness().fitness
+            for index in xrange(1, len(population.internalPop)):
+                if population[index].fitness == best_fitness:
+                    count += 1
+        else:
+            best_raw = population.bestRaw().score
+            for index in xrange(1, len(population.internalPop)):
+                if population[index].score == best_raw:
+                    count += 1
 
-      GRankSelector.cachePopID = args["popID"]
-      GRankSelector.cacheCount = count
+        GRankSelector.cachePopID = args["popID"]
+        GRankSelector.cacheCount = count
 
-   else: count = GRankSelector.cacheCount
+    else: count = GRankSelector.cacheCount
 
-   return population[random.randint(0, count)]
+    return population[random.randint(0, count)]
 
 GRankSelector.cachePopID = None
 GRankSelector.cacheCount = None
 
 def GUniformSelector(population, **args):
-   """ The Uniform Selector """
-   return population[random.randint(0, len(population)-1)]
+    """ The Uniform Selector """
+    return population[random.randint(0, len(population)-1)]
 
 def GTournamentSelector(population, **args):
-   """ The Tournament Selector
-   
-   It accepts the *tournamentPool* population parameter.
+    """ The Tournament Selector
 
-   .. note::
-      the Tournament Selector uses the Roulette Wheel to
-      pick individuals for the pool
+    It accepts the *tournamentPool* population parameter.
 
-   .. versionchanged:: 0.6
-      Changed the parameter `poolSize` to the `tournamentPool`, now the selector
-      gets the pool size from the population.
+    .. note::
+       the Tournament Selector uses the Roulette Wheel to
+       pick individuals for the pool
 
-   """
-   choosen = None
-   poolSize = population.getParam("tournamentPool", Consts.CDefTournamentPoolSize)
+    .. versionchanged:: 0.6
+       Changed the parameter `poolSize` to the `tournamentPool`, now the selector
+       gets the pool size from the population.
 
-   tournament_pool = [GRouletteWheel(population, **args) for i in xrange(poolSize) ] 
+    """
+    choosen = None
+    poolSize = population.getParam("tournamentPool", Consts.CDefTournamentPoolSize)
 
-   if population.sortType == Consts.sortType["scaled"]:
-      choosen = max(tournament_pool, key=key_fitness_score)
-   else:
-      choosen = max(tournament_pool, key=key_raw_score)
+    tournament_pool = [GRouletteWheel(population, **args) for i in xrange(poolSize) ]
 
-   return choosen
+    if population.sortType == Consts.sortType["scaled"]:
+        choosen = max(tournament_pool, key=key_fitness_score)
+    else:
+        choosen = max(tournament_pool, key=key_raw_score)
+
+    return choosen
 
 def GTournamentSelectorAlternative(population, **args):
-   """ The alternative Tournament Selector
-   
-   This Tournament Selector don't uses the Roulette Wheel
+    """ The alternative Tournament Selector
 
-   It accepts the *tournamentPool* population parameter.
+    This Tournament Selector don't uses the Roulette Wheel
 
-   .. versionadded: 0.6
-      Added the GTournamentAlternative function.
+    It accepts the *tournamentPool* population parameter.
 
-   """
-   choosen = None
-   best_measure = 0
-   len_pop = len(population)
-   poolSize = population.getParam("tournamentPool", Consts.CDefTournamentPoolSize)
+    .. versionadded: 0.6
+       Added the GTournamentAlternative function.
 
-   for i in xrange(poolSize):
-      tryit = population[random.randint(0, len_pop-1)]
-      measure = tryit.fitness if population.sortType == Consts.sortType["scaled"] else tryit.score
-      if measure > best_measure:
-         choosen = tryit
-         best_measure = measure
+    """
+    choosen = None
+    best_measure = 0
+    len_pop = len(population)
+    poolSize = population.getParam("tournamentPool", Consts.CDefTournamentPoolSize)
 
-   return choosen
+    for i in xrange(poolSize):
+        tryit = population[random.randint(0, len_pop-1)]
+        measure = tryit.fitness if population.sortType == Consts.sortType["scaled"] else tryit.score
+        if measure > best_measure:
+            choosen = tryit
+            best_measure = measure
+
+    return choosen
 
 
 def GRouletteWheel(population, **args):
-   """ The Roulette Wheel selector """
-   psum = None
-   if args["popID"] != GRouletteWheel.cachePopID:
-      GRouletteWheel.cachePopID = args["popID"]
-      psum = GRouletteWheel_PrepareWheel(population)
-      GRouletteWheel.cacheWheel = psum
-   else:
-      psum = GRouletteWheel.cacheWheel
-  
-   cutoff = random.random()
-   lower = 0
-   upper = len(population) - 1
-   while(upper >= lower):
-      i = lower + ((upper-lower)/2)
-      if psum[i] > cutoff: upper = i-1
-      else: lower = i+1
+    """ The Roulette Wheel selector """
+    psum = None
+    if args["popID"] != GRouletteWheel.cachePopID:
+        GRouletteWheel.cachePopID = args["popID"]
+        psum = GRouletteWheel_PrepareWheel(population)
+        GRouletteWheel.cacheWheel = psum
+    else:
+        psum = GRouletteWheel.cacheWheel
 
-   lower = min(len(population)-1, lower)
-   lower = max(0, lower)
+    cutoff = random.random()
+    lower = 0
+    upper = len(population) - 1
+    while(upper >= lower):
+        i = lower + ((upper-lower)/2)
+        if psum[i] > cutoff: upper = i-1
+        else: lower = i+1
 
-   return population.bestFitness(lower)
+    lower = min(len(population)-1, lower)
+    lower = max(0, lower)
+
+    return population.bestFitness(lower)
 
 GRouletteWheel.cachePopID = None
 GRouletteWheel.cacheWheel = None
 
 def GRouletteWheel_PrepareWheel(population):
-   """ A preparation for Roulette Wheel selection """
+    """ A preparation for Roulette Wheel selection """
 
-   len_pop = len(population)
-   
-   psum = [i for i in xrange(len_pop)]
+    len_pop = len(population)
 
-   population.statistics()
+    psum = [i for i in xrange(len_pop)]
 
-   if population.sortType == Consts.sortType["scaled"]:
-      pop_fitMax = population.stats["fitMax"]
-      pop_fitMin = population.stats["fitMin"]
+    population.statistics()
 
-      if pop_fitMax == pop_fitMin:
-         for index in xrange(len_pop):
-            psum[index] = (index+1) / float(len_pop)
-      elif (pop_fitMax > 0 and pop_fitMin >= 0) or (pop_fitMax <= 0 and pop_fitMin < 0):
-         population.sort()
-         if population.minimax == Consts.minimaxType["maximize"]:
-            psum[0] = population[0].fitness
-            for i in xrange(1, len_pop):
-               psum[i] = population[i].fitness + psum[i-1]
-            for i in xrange(len_pop):
-               psum[i] /= float(psum[len_pop - 1])
-         else:
-            psum[0] = -population[0].fitness + pop_fitMax + pop_fitMin
-            for i in xrange(1, len_pop):
-               psum[i] = -population[i].fitness + pop_fitMax + pop_fitMin + psum[i-1]
-            for i in xrange(len_pop):
-               psum[i] /= float(psum[len_pop - 1])
-   else:
-      pop_rawMax = population.stats["rawMax"]
-      pop_rawMin = population.stats["rawMin"]
+    if population.sortType == Consts.sortType["scaled"]:
+        pop_fitMax = population.stats["fitMax"]
+        pop_fitMin = population.stats["fitMin"]
 
-      if pop_rawMax == pop_rawMin:
-         for index in xrange(len_pop):
-            psum[index] = (index+1) / float(len_pop)
-      
-      elif (pop_rawMax > 0 and pop_rawMin >= 0) or (pop_rawMax <= 0 and pop_rawMin < 0):
-         population.sort()
-         if population.minimax == Consts.minimaxType["maximize"]:
-            psum[0] = population[0].score
-            for i in xrange(1, len_pop):
-               psum[i] = population[i].score + psum[i-1]
-            for i in xrange(len_pop):
-               psum[i] /= float(psum[len_pop-1])
-         else:
-            psum[0] = - population[0].score + pop_rawMax + pop_rawMin
-            for i in xrange(1, len_pop):
-               psum[i] = - population[i].score + pop_rawMax + pop_rawMin + psum[i-1]
-            for i in xrange(len_pop):
-               psum[i] /= float(psum[len_pop-1])
+        if pop_fitMax == pop_fitMin:
+            for index in xrange(len_pop):
+                psum[index] = (index+1) / float(len_pop)
+        elif (pop_fitMax > 0 and pop_fitMin >= 0) or (pop_fitMax <= 0 and pop_fitMin < 0):
+            population.sort()
+            if population.minimax == Consts.minimaxType["maximize"]:
+                psum[0] = population[0].fitness
+                for i in xrange(1, len_pop):
+                    psum[i] = population[i].fitness + psum[i-1]
+                for i in xrange(len_pop):
+                    psum[i] /= float(psum[len_pop - 1])
+            else:
+                psum[0] = -population[0].fitness + pop_fitMax + pop_fitMin
+                for i in xrange(1, len_pop):
+                    psum[i] = -population[i].fitness + pop_fitMax + pop_fitMin + psum[i-1]
+                for i in xrange(len_pop):
+                    psum[i] /= float(psum[len_pop - 1])
+    else:
+        pop_rawMax = population.stats["rawMax"]
+        pop_rawMin = population.stats["rawMin"]
 
-   return psum
+        if pop_rawMax == pop_rawMin:
+            for index in xrange(len_pop):
+                psum[index] = (index+1) / float(len_pop)
+
+        elif (pop_rawMax > 0 and pop_rawMin >= 0) or (pop_rawMax <= 0 and pop_rawMin < 0):
+            population.sort()
+            if population.minimax == Consts.minimaxType["maximize"]:
+                psum[0] = population[0].score
+                for i in xrange(1, len_pop):
+                    psum[i] = population[i].score + psum[i-1]
+                for i in xrange(len_pop):
+                    psum[i] /= float(psum[len_pop-1])
+            else:
+                psum[0] = - population[0].score + pop_rawMax + pop_rawMin
+                for i in xrange(1, len_pop):
+                    psum[i] = - population[i].score + pop_rawMax + pop_rawMin + psum[i-1]
+                for i in xrange(len_pop):
+                    psum[i] /= float(psum[len_pop-1])
+
+    return psum
