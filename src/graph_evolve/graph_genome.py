@@ -50,8 +50,6 @@ def get_bfs_neighbours(G, source, n):
 
 def graph_crossover(_, **args):
 
-#    print "----------CROSSING--------------"
-
     mom = args["mom"]
     dad = args["dad"]
     
@@ -253,16 +251,20 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         Remove all the nodes that are not reachable by the source node, unless
         the resulting graph would be smaller than 2
         '''
-        newgraph = self.graph.copy()
         
-        tree = nx.dfs_tree(self.graph, source=self.starting_node)
-        newgraph.remove_nodes_from([n for n in self.graph if n not in tree])
-        
-        #if the new graph is too small, don't prune. My hope is that natural
-        #selection (or random mutations) will fix this problem
-        if len(newgraph) > 2:        
-            self.graph = newgraph
-        
+#        newgraph = self.graph.copy()
+#        tree = nx.dfs_tree(self.graph, source=self.starting_node)
+#        newgraph.remove_nodes_from(n for n in self.graph if n not in tree)
+#        if len(newgraph) > 2:        
+#            self.graph = newgraph
+
+        all_nodes = self.graph.nodes()
+#        tree = nx.dfs_tree(self.graph, source=self.starting_node)
+        tree = nx.single_source_shortest_path(self.graph, 
+                                              source=self.starting_node)
+        if len(tree) > 2:
+            self.graph.remove_nodes_from(n for n in all_nodes if n not in tree)
+            
     
     def add_random_node(self):
         '''
@@ -315,10 +317,12 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         candidates = [n for n in self.graph if self.graph.out_degree(n) > 0 
                       and any( (v!=n for _,v in self.graph.out_edges_iter(n)) )]
         
+        
         if len(candidates) == 0: #it might happen.. we simply pick a random one
             self.starting_node = random.choice(self.graph.nodes()) 
         else:
             self.starting_node = random.choice(candidates)
+
     
     def remove_random_node(self):
         '''
@@ -427,6 +431,7 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         '''
         
         pyevolve.GenomeBase.GenomeBase.copy(self,genome)
+        genome.initial_num_nodes = self.initial_num_nodes
         genome.node_degrees = self.node_degrees
         genome.node_params = self.node_params
         genome.num_node_types = self.num_node_types

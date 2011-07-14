@@ -35,12 +35,8 @@ def eval_func(chromosome, **args):
     dict_genome = chromosome.create_dict()
     G = networkx.MultiDiGraph(dict_genome)
 
-#    labels = {}
-#    for i in xrange(chromosome.num_nodes):
-#        labels[i] = str(chromosome.node_ids[i])
     centr = networkx.closeness_centrality(G)
     c_sum = sum(centr.values())
-#    print "centr: ", centr, " c_sum: ", c_sum
 
     p_sum = sum ([node.params[0] for node in chromosome.nodes]) / len(G)
     return c_sum * p_sum
@@ -62,10 +58,11 @@ class TestEvolution(unittest.TestCase):
         genome.setParams(p_del=0.1, p_add=0.1)
         
         ga = GSimpleGA.GSimpleGA(genome)
-        print "STOPPING ELITISM"
-        ga.setElitism(False)
+#        print "STOPPING ELITISM"
+        ga.setElitism(True)
         
         ga.selector.set(Selectors.GRouletteWheel)
+        ga.getPopulation().setParams(tournamentPool = 200)
         
         ga.setGenerations(50)
         ga.setPopulationSize(200)
@@ -90,8 +87,10 @@ class TestEvolution(unittest.TestCase):
     #    networkx.draw_networkx_edges(G, pos)
     #    networkx.draw_networkx_labels(G, pos, labels)
         
-        networkx.draw(G)
+#        networkx.draw(G)
     
-        plt.show()
-        
+#        plt.show()
+
+if __name__ == "__main__":
+    unittest.main()
     
