@@ -1,5 +1,6 @@
 import sys
 sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src')
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
 
 from pyevolve import GSimpleGA
 from pyevolve import G1DList
@@ -18,39 +19,24 @@ from graph_evolve.chromosome_smach import convert_chromosome_smach
 import cPickle
 from mpi4py import MPI
 from pyevolve import mpi_migration
+import math
+import random
+import time
 
 smach.set_loggers(smach.loginfo,
                   smach_grasp.null_print,
                   smach_grasp.null_print,
                   smach_grasp.null_print)
 
-names_mapping = ["RecogniseObject",
-                 "MoveToObject",
-                 "GraspObject",
-                 "CheckSuccess",
-                 "MoveGripperToParam"]
-classes_mapping = {"RecogniseObject" : smach_grasp.RecogniseObject,
-                 "MoveToObject": smach_grasp.MoveGripperTo,
-                 "GraspObject": smach_grasp.GraspObject,
-                 "CheckSuccess": smach_grasp.CheckSuccess,
-                 "MoveGripperToParam" : smach_grasp.MoveGripperToParam}
-transitions_mapping = {'RecogniseObject':["success",],
-                       'MoveToObject':["success", "failure",],
-                       'GraspObject':["success", "failure",],
-                       "CheckSuccess":[],
-                       "MoveGripperToParam":["success", "failure"]}
+from graph_evolve.smach_grasp import (names_mapping, classes_mapping, transitions_mapping,
+                         data_mapping, node_degrees, nodes_params)
 
-default_mapping = {'state_in':'robot_state',
-                   'state_out':'robot_state',
-                   }
-data_mapping = {'RecogniseObject': default_mapping,
-                'MoveToObject': default_mapping,
-                'GraspObject' :default_mapping,
-                "CheckSuccess": default_mapping,
-                "MoveGripperToParam": default_mapping}
- 
-node_degrees = [1,2,2,0,2]
-nodes_params = [0,0,0,0,3]
+all_mappings = (names_mapping,
+                classes_mapping,
+                transitions_mapping,                
+                data_mapping,
+                node_degrees,
+                nodes_params)
 
 def single_try(chromosome, **args):
     sm = convert_chromosome_smach(chromosome, 
@@ -61,47 +47,55 @@ def single_try(chromosome, **args):
     robot_state =  smach_grasp.RobotWorldState()
     sm.userdata.robot_state = robot_state
     outcome = sm.execute()
-    
+
     if outcome == "success":
-#        print "Great!"
         return 0
+    elif not sm.userdata.robot_state.object_in_gripper:
+        return 20
     else:
-#        dist = smach_grasp.state_dist_gripper_object(sm.userdata.robot_state)
-#        return dist
-        if sm.userdata.robot_state.object_in_gripper:
-            return smach_grasp.state_dist_gripper_object(sm.userdata.robot_state,
-                                                         (0.0,0.0,0.0))
+        tot_dist = (smach_grasp.state_dist_gripper_object(sm.userdata.robot_state,
+                                                          smach_grasp.target_pos) + 
+                    smach_grasp.state_dist_gripper_rotation(sm.userdata.robot_state,
+                                                            smach_grasp.target_rot)
+                   )
+        if outcome == "timeout":
+            return 2. * tot_dist
         else:
-            return 25
+            return tot_dist
 
 def eval_func(chromosome, **args):
-    res = []
-    for _ in xrange(100): 
-        res.append(single_try(chromosome, **args))
-    return sum(res)
-
+    num_trials = 30
+    return sum(single_try(chromosome, **args) for _ in xrange(num_trials) ) / num_trials
 
 freq_stats = 10
 
 def stepCallback(ga_engine):
     generation = ga_engine.getCurrentGeneration()
     if generation % freq_stats == 0:
-
+        
         comm = MPI.COMM_WORLD
         if comm.rank == 0:
             migrator = ga_engine.migrationAdapter
             if migrator.all_stars is not None:
                 
-                print "All stars: ", [i.score for i in migrator.all_stars]
-                best = max(migrator.all_stars, key = lambda x:x.score)
-                file = open("bestgenome.txt","w")
-                cPickle.dump(best, file)
+                print "All stars: ", [i.score for i in migrator.all_stars]                
+                if ga_engine.getMinimax() == Consts.minimaxType["maximize"]:                
+                    best = max(migrator.all_stars, key = lambda x:x.score)
+                else:
+                    best = min(migrator.all_stars, key = lambda x:x.score)
+                file = open("bestgenome.txt","wb")
+                cPickle.dump((best, all_mappings), 
+                             file, 
+                             protocol=cPickle.HIGHEST_PROTOCOL)
                 file.close()
                 smach.set_loggers(smach.loginfo,
                         smach.logwarn,
                         smach_grasp.null_print,
                         smach.logerr)
-                score = eval_func(best)
+#                score = eval_func(best)
+                newbest = best.clone()
+                newbest.evaluate()
+                score = newbest.score
                 print "Fitness: ", best.score
                 print "Real Score: ", score
                 print
@@ -113,44 +107,41 @@ def stepCallback(ga_engine):
 if __name__ == "__main__":
 
     comm = MPI.COMM_WORLD
+    random.seed(time.time() * comm.rank)
     
     smach.set_loggers(smach_grasp.null_print,
                       smach.logwarn,
                       smach_grasp.null_print,
                       smach.logerr)
-    num_nodes= 5
-    pop_size = 500
+    num_nodes= 50
+    pop_size = 300
     poolsize = int(pop_size / 10.)
-    migration_size = 1
-    migration_rate = 50
-    elitism_size = 5
-    generations = 1000
-
-    if comm.rank == 0:
-        print "Num nodes: ", num_nodes
-        print "Pop Size: ", pop_size
-        print "Tournament Size: ", poolsize
-        print "Migration Size: ", migration_size
-        print "Elitism Size: ", elitism_size
-        print "Number of Generations: ", generations
+    migration_size = 10
+    migration_rate = 10
+    elitism_size = 1
+    generations = 2000
+    stop_elitism = False    
     
     genome = graph_genome.GraphGenome(num_nodes, node_degrees, nodes_params)
     genome.evaluator.set(eval_func)
     
     ga = GSimpleGA.GSimpleGA(genome)
-#    print "STOPPING ELITISM"
-    ga.setElitism(True)
-    ga.setElitismReplacement(1)
+    
+    if stop_elitism:
+        ga.setElitism(False)
+    else:
+        ga.setElitism(True)
+        ga.setElitismReplacement(elitism_size)
     
     ga.selector.set(Selectors.GRouletteWheel)
     ga.setSortType(Consts.sortType["raw"])
     
     ga.setGenerations(generations)
     ga.setPopulationSize(pop_size)
-    ga.setCrossoverRate(0.2)
-    ga.setMutationRate(0.2)
+    ga.setCrossoverRate(0.1)
+    ga.setMutationRate(0.1)
     ga.getPopulation().setParams(tournamentPool = poolsize)
-    genome.setParams(p_del=0.2, p_add=0.2)
+    genome.setParams(p_del=0.01, p_add=0.2)
 #    ga.setMinimax(Consts.minimaxType["maximize"])
     ga.setMinimax(Consts.minimaxType["minimize"])
 
@@ -159,14 +150,27 @@ if __name__ == "__main__":
         migrator.setGAEngine(ga)
         migrator.setNumReplacement(migration_size)
         migrator.setMigrationRate(migration_rate)
-        migrator.selector.set(Selectors.GRankSelector)
+#        migrator.selector.set(Selectors.GRankSelector)
+        migrator.selector.set(Selectors.GRouletteWheel)
 
         ga.setMigrationAdapter(migrator)
+    if comm.rank == 0:
+        ga.stepCallback.set(stepCallback)
     
+    if comm.rank == 0:
+        print "Initial num nodes: ", num_nodes
+        print "Pop Size: ", pop_size
+        print "Tournament Size: ", poolsize
+        print "Migration Size: ", migration_size
+        print "Migration frequency: ", migration_rate
+        if not stop_elitism:
+            print "Elitism Size: ", elitism_size
+        else:
+            print "NO ELITISM"
+        print "Number of Generations: ", generations
 
     # Do the evolution
     if comm.rank == 0:
-        ga.stepCallback.set(stepCallback)
         ga.evolve(freq_stats = freq_stats)
     else:
         ga.evolve(freq_stats = 0)
@@ -175,8 +179,10 @@ if __name__ == "__main__":
         # Best individual
         best = ga.bestIndividual()
 
-        file = open("bestgenome.txt","w")
-        cPickle.dump(best, file)
+        file = open("bestgenome.txt","wb")
+        cPickle.dump((best, all_mappings), 
+                     file, 
+                     protocol=cPickle.HIGHEST_PROTOCOL)
         file.close()
 
         sm = convert_chromosome_smach(best,
@@ -198,7 +204,7 @@ if __name__ == "__main__":
         else:
             print "Outcome: ", outcome
         print "Distance is: ", smach_grasp.state_dist_gripper_object(sm.userdata.robot_state,
-                                                                    (0.0,5.0,0.0))
+                                                                    (0.0,0.0,0.0))
 
         print "eval is: ", eval_func(best)
     
