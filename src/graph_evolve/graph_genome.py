@@ -202,7 +202,7 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         params.mutator.set(pyevolve.Mutators.G1DListMutatorRealGaussian)
         params.initializator.set(pyevolve.Initializators.G1DListInitializatorReal)
         params.setParams(rangemin = 0, rangemax=1.0, 
-                         gauss_mu = 0.0, gauss_sigma=0.05)
+                         gauss_mu = 0.0, gauss_sigma=0.02)
         params.initialize()
                 
     def mutate_node(self, node, pmut):

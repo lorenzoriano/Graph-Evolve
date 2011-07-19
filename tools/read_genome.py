@@ -12,21 +12,21 @@ from pyevolve import Crossovers
 from pyevolve import Consts
 
 import graph_evolve
-from graph_evolve import graph_genome
+from graph_evolve import graph_genome, smach_stack
 import smach
-from graph_evolve import smach_grasp
 smach.set_loggers(smach.loginfo,
-          smach_grasp.null_print,
-          smach_grasp.null_print,
-          smach_grasp.null_print)
+          smach_stack.null_print,
+          smach_stack.null_print,
+          smach_stack.null_print)
 from graph_evolve.chromosome_smach import convert_chromosome_smach
+
+import math
 
 #import graph_evolve
 
 #from graph_evolve import graph_genome
 import graph_genome
-
-from graph_evolve import smach_grasp
+from graph_evolve import smach_grasp, smach_stack
 import sys
 
 
@@ -66,22 +66,32 @@ if __name__ == "__main__":
         print "Generation: ", genome.generation
         print "Score: ", genome.score
         print "Genome: ", genome
+        print "Len: ", len(genome)
+        
+        G = convert_chromosome_pygraphviz(genome, names_mapping, 
+                                  transitions_mapping)
+        G.write(options.output_file)
         
         sm = convert_chromosome_smach(genome, 
                                   names_mapping, 
                                   transitions_mapping, 
                                   classes_mapping,
                                   data_mapping)
-        robot_state =  smach_grasp.RobotWorldState()
+        robot_state =  smach_stack.RobotWorldState()
         sm.userdata.robot_state = robot_state
+        
+        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
+        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
+        
         outcome = sm.execute()
         
-        print "STATE:"
-        print sm.userdata.robot_state
+        robot_state = sm.userdata.robot_state
         
-        G = convert_chromosome_pygraphviz(genome, names_mapping, 
-                                  transitions_mapping)
-        G.write(options.output_file)
+        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
+        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
+        
+        
+        
         
         
         

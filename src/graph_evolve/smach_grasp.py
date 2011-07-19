@@ -6,7 +6,7 @@ import random
 
 target_pos = (0.0,0.0,0.0)
 target_rot = (math.pi/2, 0, 0)
-success_prob = 0.9
+success_prob = 1.0
 
 class RobotWorldState(object):
     def __init__(self):

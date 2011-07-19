@@ -22,6 +22,8 @@ from pyevolve import mpi_migration
 import math
 import random
 import time
+import os
+import datetime
 
 smach.set_loggers(smach.loginfo,
                   smach_grasp.null_print,
@@ -64,7 +66,7 @@ def single_try(chromosome, **args):
             return tot_dist
 
 def eval_func(chromosome, **args):
-    num_trials = 30
+    num_trials = 1
     return sum(single_try(chromosome, **args) for _ in xrange(num_trials) ) / num_trials
 
 freq_stats = 10
@@ -76,14 +78,18 @@ def stepCallback(ga_engine):
         comm = MPI.COMM_WORLD
         if comm.rank == 0:
             migrator = ga_engine.migrationAdapter
-            if migrator.all_stars is not None:
-                
+            if migrator.all_stars is not None:                
                 print "All stars: ", [i.score for i in migrator.all_stars]                
                 if ga_engine.getMinimax() == Consts.minimaxType["maximize"]:                
                     best = max(migrator.all_stars, key = lambda x:x.score)
                 else:
                     best = min(migrator.all_stars, key = lambda x:x.score)
-                file = open("bestgenome.txt","wb")
+                    
+                dirname = ga_engine.getParam("dirname", "")
+                wholepath = os.path.normpath(os.path.join(os.path.abspath(dirname),                                             
+                                             "bestgenome.dat")
+                                            )
+                file = open(wholepath,"wb")
                 cPickle.dump((best, all_mappings), 
                              file, 
                              protocol=cPickle.HIGHEST_PROTOCOL)
@@ -106,6 +112,7 @@ def stepCallback(ga_engine):
 
 if __name__ == "__main__":
 
+
     comm = MPI.COMM_WORLD
     random.seed(time.time() * comm.rank)
     
@@ -114,12 +121,12 @@ if __name__ == "__main__":
                       smach_grasp.null_print,
                       smach.logerr)
     num_nodes= 50
-    pop_size = 300
+    pop_size = 100
     poolsize = int(pop_size / 10.)
-    migration_size = 10
-    migration_rate = 10
+    migration_size = 1
+    migration_rate = 1
     elitism_size = 1
-    generations = 2000
+    generations = 500
     stop_elitism = False    
     
     genome = graph_genome.GraphGenome(num_nodes, node_degrees, nodes_params)
@@ -158,6 +165,10 @@ if __name__ == "__main__":
         ga.stepCallback.set(stepCallback)
     
     if comm.rank == 0:
+        dirname = datetime.datetime.now().strftime("activity-%Y-%m-%d-%H-%S/")
+        os.mkdir(dirname)
+        ga.setParams(dirname=dirname)
+        
         print "Initial num nodes: ", num_nodes
         print "Pop Size: ", pop_size
         print "Tournament Size: ", poolsize
@@ -176,37 +187,7 @@ if __name__ == "__main__":
         ga.evolve(freq_stats = 0)
 
     if comm.rank == 0:
-        # Best individual
-        best = ga.bestIndividual()
-
-        file = open("bestgenome.txt","wb")
-        cPickle.dump((best, all_mappings), 
-                     file, 
-                     protocol=cPickle.HIGHEST_PROTOCOL)
-        file.close()
-
-        sm = convert_chromosome_smach(best,
-                                    names_mapping,
-                                    transitions_mapping,
-                                    classes_mapping,
-                                    data_mapping)
-        robot_state =  smach_grasp.RobotWorldState()
-        sm.userdata.robot_state = robot_state
-
-        smach.set_loggers(smach.loginfo,
-                        smach.logwarn,
-                        smach_grasp.null_print,
-                        smach.logerr)
-        try:
-            outcome = sm.execute()
-        except smach.exceptions.InvalidUserCodeError as err:
-            print "Error: ", err.message
-        else:
-            print "Outcome: ", outcome
-        print "Distance is: ", smach_grasp.state_dist_gripper_object(sm.userdata.robot_state,
-                                                                    (0.0,0.0,0.0))
-
-        print "eval is: ", eval_func(best)
+        stepCallback(ga)
     
     
     
