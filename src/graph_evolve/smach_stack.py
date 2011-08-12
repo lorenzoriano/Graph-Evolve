@@ -233,7 +233,7 @@ class MoveGripperTo(smach.State):
         
         robot_state = clone_robot_world_state(userdata.state_in)
         robot_state.number_of_transitions += 1
-        
+                
         if robot_state.number_of_transitions >= robot_state.max_number_of_transitions:
             userdata.state_out = robot_state
             return "timeout"

@@ -210,11 +210,9 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         Mutate a single node
         @param node: the node to mutate
         @param pmut: the probability to mutate the whole node structure (type
-        and out-edges
+        and out-edges)
         '''
-        
-        #Changing a node id is very involved, so the probability of this
-        #to happen is squared
+
         if random.random() < pmut:
             #The attributes change
             attrs = {}
