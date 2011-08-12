@@ -1,0 +1,3 @@
+[submodule "src/pyrecurrentnet"]
+	path = src/pyrecurrentnet
+	url = /home/pezzotto/Projects/PyRecurrentNet
