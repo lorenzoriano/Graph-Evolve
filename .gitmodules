@@ -1,3 +1,6 @@
 [submodule "src/pyrecurrentnet"]
 	path = src/pyrecurrentnet
 	url = /home/pezzotto/Projects/PyRecurrentNet
+[submodule "src/pyevolve"]
+	path = src/pyevolve
+	url = /home/pezzotto/Projects/Pyevolve

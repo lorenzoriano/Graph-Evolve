@@ -18,7 +18,7 @@ from graph_evolve.chromosome_smach import convert_chromosome_smach
 
 import cPickle
 from mpi4py import MPI
-from pyevolve import mpi_migration
+from pyevolve import MpiMigration
 import math
 import random
 import time
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     ga.setMinimax(Consts.minimaxType["minimize"])
 
     if comm.size > 1:
-        migrator = mpi_migration.MPIMigrator()
+        migrator = MpiMigration.MPIMigrator()
         migrator.setGAEngine(ga)
         migrator.setNumReplacement(migration_size)
         migrator.setMigrationRate(migration_rate)
