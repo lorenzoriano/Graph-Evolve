@@ -5,7 +5,7 @@ from pyevolve import Initializators, Mutators,  Consts
 from pyevolve import DBAdapters
 from pyevolve import Crossovers
 
-from pyevolve import mpi_migration
+from pyevolve import MpiMigration
 
 from graph_evolve import graph_genome
 import networkx
@@ -81,7 +81,7 @@ def test_evolution():
     
     comm = MPI.COMM_WORLD
     if comm.size > 1:
-        migrator = mpi_migration.MPIMigrator()
+        migrator = MpiMigration.MPIMigrator()
         migrator.setGAEngine(ga)
         migrator.setNumReplacement(1)
         migrator.setMigrationRate(1)

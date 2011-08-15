@@ -1,6 +1,9 @@
 import sys
 sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src')
+sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src\\pyevolve')
+
 sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
 
 from pyevolve import GSimpleGA
 from pyevolve import G1DList
