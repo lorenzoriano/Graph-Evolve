@@ -17,7 +17,7 @@ class Object(object):
                  dims = None):
         if pos is not None and dims is not None:
             self.starting_pos = pos
-            self.pos = pos
+            self.__pos = pos
             self.width = dims[0]
             self.length = dims[1]
             self.height = dims[2]
@@ -29,7 +29,7 @@ class Object(object):
                              random.uniform(min_y, max_y),
                              random.uniform(min_z, max_z))
         
-        self.pos = (None, None, None)
+        self.__pos = (None, None, None)
         self.height = None
         self.width = None
         self.length = None
@@ -38,6 +38,15 @@ class Object(object):
         self.y_boundaries = None
         self.z_boundaries = None
         self.initialized = False
+    
+    def get_pos(self):
+        return self.__pos
+    
+    def set_pos(self, newpos):
+        self.__pos = newpos
+        self.calculate_boundaries()
+    
+    pos = property(get_pos, set_pos)
     
     def calculate_boundaries(self):
         self.x_boundaries = (self.pos[0] - self.width/2.,
@@ -57,7 +66,7 @@ class Object(object):
                    min_h = 0.01,):
         self.initialized = True        
     
-        self.pos = self.starting_pos
+        self.__pos = self.starting_pos
     
         self.height = random.uniform(min_h, max_h)
         self.width = random.uniform(min_w, max_w)
@@ -153,7 +162,7 @@ class Robot(Object):
 
 class GraspingWorld(object):
     def __init__(self,
-                 max_x = 5.0,
+                 max_x = 3.0,
                  min_x = 0,
                  max_y = 5.0,
                  min_y = 0,
@@ -172,6 +181,11 @@ class GraspingWorld(object):
         
         self.max_z = max_z
         self.min_z = min_z
+        self.time_step = 0
+        
+        
+    def inc_time(self):
+        self.time_step +=  1
 
     def create_table(self):
         self.table = Object(max_x = self.max_x,
@@ -221,6 +235,46 @@ class GraspingWorld(object):
             if not (self.objects_collide(self.robot, self.table) or
                     (self.robot.sees_any(self.objects) and require_not_visible)):
                 break
+    
+    def create_with_fixed_robot(self):
+        
+        robot_x = (self.max_x - self.min_x)/2.
+        self.robot = Robot( pos = (robot_x, 0, 0), th = math.pi/2.)
+        
+        while True:            
+            self.create_table()
+            self.create_object_on_table()
+            if not (self.robot.sees_any(self.objects) or
+                    self.robot.sees(self.table)):
+                break
+            
+            self.table = None
+            self.objects.pop()
+    
+    def move_robot(self, pos):
+        
+        x,y,th = pos
+        
+        if not (self.min_x <= x <= self.max_x):
+            return False
+        if not (self.min_y <= y <= self.max_y):
+            return False
+        
+        newrobot = copy.copy(self.robot)
+        newrobot.pos = (x, y, newrobot.pos[2])
+        newrobot.th = th
+        
+        if self.objects_collide(newrobot, self.table):
+            return False
+        for o in self.objects:
+            if self.objects_collide(newrobot, o):
+                return False 
+         
+        self.robot = newrobot
+        return True
+    
+    def robot_sees_objects(self):
+        return self.robot.sees_any(self.objects)
     
     @staticmethod
     def __objects_collide(obj1, obj2):
