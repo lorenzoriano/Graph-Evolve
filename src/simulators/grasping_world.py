@@ -82,6 +82,11 @@ class Object(object):
         
         return inside_x and inside_y and inside_z
 
+    def dist(self, obj):
+        return math.sqrt( (self.pos[0] - obj.pos[0])**2 + 
+                          (self.pos[1] - obj.pos[1])**2
+                        )
+
 class Robot(Object):
     def __init__(self, 
                  max_x = None, 
@@ -162,10 +167,10 @@ class Robot(Object):
 
 class GraspingWorld(object):
     def __init__(self,
-                 max_x = 3.0,
+                 max_x = 5.0,
                  min_x = 0,
-                 max_y = 5.0,
-                 min_y = 0,
+                 max_y = 1.5,
+                 min_y = -1.5,
                  max_z = 0,
                  min_z = 2.0):
                 
@@ -173,31 +178,57 @@ class GraspingWorld(object):
         self.table = None
         self.objects = []
         
-        self.min_x = min_x
-        self.max_x = max_x
+#        self.min_x = min_x
+#        self.max_x = max_x
+        self.min_x = 0
+        self.max_x = random.uniform(3.3, 5)
         
-        self.min_y = min_y 
-        self.max_y = max_y
+#        self.min_y = min_y 
+#        self.max_y = max_y
+
+        length = random.uniform(3.3, 5.)
+        self.min_y = -length/2.
+        self.max_y = length/2.
         
         self.max_z = max_z
         self.min_z = min_z
         self.time_step = 0
         
-        
+        self.robot_positions = []
+    
     def inc_time(self):
         self.time_step +=  1
 
-    def create_table(self):
-        self.table = Object(max_x = self.max_x,
-                            min_x = self.min_x,
-                            max_y = self.max_y,
-                            min_y = self.min_y,
+    def create_fixed_table(self, pos):
+        self.table = Object(max_x = pos[0],
+                            min_x = pos[0],
+                            max_y = pos[1],
+                            min_y = pos[1],
                             max_z = 0,
                             min_z = 0)
         
         width = (0.3, 1.2)
         height = (0.3, 1.0)
-        length = (0.2,  1.5)
+        length = (0.3,  1.2)
+        
+        self.table.initialize(width[1], 
+                              width[0], 
+                              length[1],
+                              length[0], 
+                              height[1],
+                              height[0])
+
+    def create_table(self):
+        self.table = Object(max_x = self.max_x - 1.1,
+                            min_x = self.min_x + 1.5,
+                            max_y = self.max_y - 1.1,
+                            min_y = self.min_y + 1.1,
+                            max_z = 0,
+                            min_z = 0)
+        
+        width = (0.3, 1.2)
+        height = (0.3, 1.0)
+        length = (0.3,  1.2)
         
         self.table.initialize(width[1], 
                               width[0], 
@@ -235,11 +266,12 @@ class GraspingWorld(object):
             if not (self.objects_collide(self.robot, self.table) or
                     (self.robot.sees_any(self.objects) and require_not_visible)):
                 break
-    
+        
+        self.robot_positions = [self.robot.pos]
     def create_with_fixed_robot(self):
         
-        robot_x = (self.max_x - self.min_x)/2.
-        self.robot = Robot( pos = (robot_x, 0, 0), th = math.pi/2.)
+        self.robot = Robot( pos = (0., 0., 0.), th = 0.)
+        self.robot_positions = [self.robot.pos]
         
         while True:            
             self.create_table()
@@ -253,6 +285,7 @@ class GraspingWorld(object):
     
     def move_robot(self, pos):
         
+        self.robot_positions.append(pos)
         x,y,th = pos
         
         if not (self.min_x <= x <= self.max_x):

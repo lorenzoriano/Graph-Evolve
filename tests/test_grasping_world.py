@@ -1,9 +1,15 @@
+import sys
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
+
 import unittest
 import smach
 from simulators import grasping_world
 import math
 import random
 import smach_explore
+import chromosome_smach
+import graph_genome
+import pyrecurrentnet
 
 from grasping_world import (Object, 
                             Robot, 
@@ -211,8 +217,8 @@ class BasicTests(unittest.TestCase):
         x,y,_ = world.robot.pos        
         th = world.robot.th
         
-        x += 0.1
-        y += 0.1
+        x += 0.01
+        y += 0.01
         
         res = world.move_robot((x, y, th))
         self.assertTrue(res)
@@ -265,19 +271,19 @@ class BasicTests(unittest.TestCase):
         world = GraspingWorld()
         world.create_with_fixed_robot()
         
-        print
-        print "Table pos: ", world.table.pos
-        print "Table dims: ", (world.table.width, 
-                               world.table.length, 
-                               world.table.height)
-        
-        print "Object pos: ", world.objects[0].pos
-        print "Object dims: ", (world.objects[0].width, 
-                                world.objects[0].length, 
-                                world.objects[0].height)
-        
-        print "Robot pos: ", world.robot.pos
-        print "Robot theta: ", world.robot.th
+#        print
+#        print "Table pos: ", world.table.pos
+#        print "Table dims: ", (world.table.width, 
+#                               world.table.length, 
+#                               world.table.height)
+#        
+#        print "Object pos: ", world.objects[0].pos
+#        print "Object dims: ", (world.objects[0].width, 
+#                                world.objects[0].length, 
+#                                world.objects[0].height)
+#        
+#        print "Robot pos: ", world.robot.pos
+#        print "Robot theta: ", world.robot.th
     
     def test_visibility_stats(self):        
         print "Visibility stats: ", visibility_stats(1000)
@@ -288,10 +294,16 @@ class BasicTests(unittest.TestCase):
 
 
 def null_print(_): pass
-smach.set_loggers(smach.loginfo,
+
+smach.set_loggers(null_print,
                   null_print,
                   null_print,
                   null_print)
+
+#smach.set_loggers(smach.loginfo,
+#                  null_print,
+#                  smach.logdebug,
+#                  smach.logerr)
 
 class StateMachineTests(unittest.TestCase):
     def test_simple(self):
@@ -315,22 +327,162 @@ class StateMachineTests(unittest.TestCase):
                                                 'network_out' :  'net_value'}
                                    )
             smach.StateMachine.add('Mover', smach_explore.RobotMove(world),
-                                   transitions={'success' : 'CheckSuccess',
+                                   transitions={'success' : 'ExitSuccess',
                                                 "timeout":  "timeout",
                                                 "failure" : "N1"},
                                    remapping = {'move_pos' : 'net_value',}
                                    )
-            smach.StateMachine.add('CheckSuccess', smach_explore.CheckSuccess(world),
+            smach.StateMachine.add('ExitSuccess', smach_explore.ExitSuccess(world),
+                                   transitions={'success' : 'success',
+                                                "timeout":  "timeout",
+                                                "failure" : "N1"},                                   
+                                   )
+            
+        sm.execute()
+#        print "UserData: ", sm.userdata.net_value
+#        print "RobotState: ", world.robot.pos, " ", world.robot.th
+    
+    def test_random_mover(self):
+        sm = smach.StateMachine(outcomes=["success", 
+                                          "failure", 
+                                          "timeout"])
+        world = GraspingWorld()
+        world.create_with_fixed_robot()
+        
+        nstates = 10
+        with sm:
+            
+            for sgh in xrange(nstates-1):
+                params = [random.random() for _ in xrange(6)]
+            
+                smach.StateMachine.add('R_'+str(sgh), smach_explore.RandomMove(params,world),
+                                       transitions={'success' : 'E_'+str(sgh),
+                                                    'failure' : 'E_'+str(sgh),
+                                                    "timeout": "timeout"},
+                                       )
+                smach.StateMachine.add('E_'+str(sgh), smach_explore.ExitSuccess(world),
+                                       transitions={'success' : 'success',
+                                                    "timeout":  "timeout",
+                                                    "failure" : "R_"+str(sgh+1)},                                   
+                                   )
+            
+            params = [random.random() for _ in xrange(6)]
+        
+            smach.StateMachine.add('R_'+str(nstates-1), smach_explore.RandomMove(params,world),
+                                   transitions={'success' : 'E_'+str(nstates-1),
+                                                "timeout": "timeout"},
+                                   )
+            smach.StateMachine.add('E_'+str(nstates-1), smach_explore.ExitSuccess(world),
                                    transitions={'success' : 'success',
                                                 "timeout":  "timeout",
                                                 "failure" : "failure"},                                   
-                                   )
+                               )
             
         outcome = sm.execute()
-        print "UserData: ", sm.userdata.net_value
-        print "RobotState: ", world.robot.pos, " ", world.robot.th
+        print "Random mover outcome: ", outcome
+    
+    def test_factory(self):
+        factory = smach_explore.ExplorerFactory()
+        world = factory.world
+        genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                          factory.node_params)
+        genome.initialize()
+        
+        sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+        
+        sm.execute()
+#        try:
+#            print "UserData: ", sm.userdata.net_value
+#        except KeyError:
+#            pass
+#        print "RobotState: ", world.robot.pos, " ", world.robot.th
+    
+    def test_factory2(self):
+        factory = smach_explore.ExplorerFactory2()
+        world = factory.world
+        genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                          factory.node_params)
+        genome.initialize()
+        
+        sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+        
+        sm.execute()
+    
+    def test_sample_genomes(self):
+        
+        steps = 1000
+        successess = 0
+        
+        for trial in xrange(steps):
+            factory = smach_explore.ExplorerFactory()
+            world = factory.world
+            genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                              factory.node_params)
+            genome.initialize()
             
+            sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                           factory.names_mapping, 
+                                                           factory.transitions_mapping, 
+                                                           factory.classes_mapping, 
+                                                           factory.data_mapping)
             
+            outcome = sm.execute()
+            if outcome == "success":
+                successess += 1
+                
+        print "success rate: ", float(successess) / float(steps)
+
+    
+    def test_sample_genomes2(self):
+        
+        steps = 1000
+        successess = 0
+        
+        for trial in xrange(steps):
+            factory = smach_explore.ExplorerFactory2()
+            world = factory.world
+            genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                              factory.node_params)
+            genome.initialize()
+            
+            sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                           factory.names_mapping, 
+                                                           factory.transitions_mapping, 
+                                                           factory.classes_mapping, 
+                                                           factory.data_mapping)
+            
+            outcome = sm.execute()
+            if outcome == "success":
+                successess += 1
+                
+        print "success rate: ", float(successess) / float(steps)
+
+    def test_net(self):
+        network_input_size = 3
+        network_output_size = 3
+        network_hidden_size = 0
+        network_bias_size = network_hidden_size + network_output_size
+        network_total_size = network_input_size + network_hidden_size + network_output_size
+        params_size = (network_total_size - network_input_size)*network_total_size + network_bias_size
+        
+        max_w = 3.
+        min_w = -3.
+        
+        params = [(max_w-min_w)*random.random() +min_w for _ in xrange(params_size)]
+        
+        net =  pyrecurrentnet.list_convert(params, 
+                                           network_input_size, 
+                                           network_output_size, 
+                                           network_hidden_size)
+
 if __name__ == "__main__":
     unittest.main()
 
