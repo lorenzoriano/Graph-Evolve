@@ -29,7 +29,10 @@ def convert_chromosome_smach(chromosome,
                 transitions={'success': 'success',
                              'failure': 'failure',
                              'timeout': 'timeout'
-                             }                               
+                             }
+            elif names_mapping[node.type_id] == "ExitSuccess":
+                transitions['success'] = 'success'
+                
             remapping = data_mapping[names_mapping[node.type_id]]
             if len(node.params):
                 state = state_class(node.params[:])
