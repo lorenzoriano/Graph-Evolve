@@ -80,8 +80,8 @@ if __name__ == "__main__":
     
     all_poses = np.array(all_poses)
     all_objects = np.array(all_objects)
-    plt.plot(all_poses[:,0], all_poses[:,1], '.', alpha=0.1)
     plt.plot(all_objects[:,0], all_objects[:,1], 'r.',  alpha=0.1)
+    plt.plot(all_poses[:,0], all_poses[:,1], 'b.', alpha=0.2)    
     plt.show()
     
     
