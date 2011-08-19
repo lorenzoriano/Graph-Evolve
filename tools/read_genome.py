@@ -1,4 +1,7 @@
 #! /usr/bin/python
+import sys
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
 
 import cPickle
 from optparse import OptionParser
@@ -12,21 +15,21 @@ from pyevolve import Crossovers
 from pyevolve import Consts
 
 import graph_evolve
-from graph_evolve import graph_genome, smach_stack
-import smach
-smach.set_loggers(smach.loginfo,
-          smach_stack.null_print,
-          smach_stack.null_print,
-          smach_stack.null_print)
-from graph_evolve.chromosome_smach import convert_chromosome_smach
+#from graph_evolve import graph_genome, smach_stack
+#import smach
+#smach.set_loggers(smach.loginfo,
+#          smach_stack.null_print,
+#          smach_stack.null_print,
+#          smach_stack.null_print)
+#from graph_evolve.chromosome_smach import convert_chromosome_smach
 
 import math
 
 #import graph_evolve
 
 #from graph_evolve import graph_genome
-import graph_genome
-from graph_evolve import smach_grasp, smach_stack
+#import graph_genome
+#from graph_evolve import smach_grasp, smach_stack
 import sys
 
 
@@ -55,40 +58,34 @@ if __name__ == "__main__":
         sys.exit()
         
     with open(options.input_file, "r") as f:
-        (genome, all_mappings) = cPickle.load(f)
-        (names_mapping,
-         classes_mapping,
-         transitions_mapping,         
-         data_mapping,
-         node_degrees,
-         nodes_params) = all_mappings
+        genome, names_mapping, transitions_mapping = cPickle.load(f)
         
         print "Generation: ", genome.generation
         print "Score: ", genome.score
-        print "Genome: ", genome
+#        print "Genome: ", genome
         print "Len: ", len(genome)
         
         G = convert_chromosome_pygraphviz(genome, names_mapping, 
                                   transitions_mapping)
         G.write(options.output_file)
         
-        sm = convert_chromosome_smach(genome, 
-                                  names_mapping, 
-                                  transitions_mapping, 
-                                  classes_mapping,
-                                  data_mapping)
-        robot_state =  smach_stack.RobotWorldState()
-        sm.userdata.robot_state = robot_state
-        
-        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
-        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
-        
-        outcome = sm.execute()
-        
-        robot_state = sm.userdata.robot_state
-        
-        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
-        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
+#        sm = convert_chromosome_smach(genome, 
+#                                  names_mapping, 
+#                                  transitions_mapping, 
+#                                  classes_mapping,
+#                                  data_mapping)
+#        robot_state =  smach_stack.RobotWorldState()
+#        sm.userdata.robot_state = robot_state
+#        
+#        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
+#        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
+#        
+#        outcome = sm.execute()
+#        
+#        robot_state = sm.userdata.robot_state
+#        
+#        print "\nInitPoses: ", robot_state.obj1.starting_pos,"\t",robot_state.obj2.starting_pos
+#        print "Poses: ", robot_state.obj1.pos,"\t",robot_state.obj2.pos
         
         
         
