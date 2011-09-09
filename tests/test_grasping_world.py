@@ -312,27 +312,29 @@ class StateMachineTests(unittest.TestCase):
                                           "timeout"])
         world = GraspingWorld()
         world.create_with_fixed_robot()
-        params = [2*random.random()-1.0 for _ in  xrange(smach_explore.params_size)]
+        experiment = smach_explore.ExperimentSetup()
+        experiment.initialize()
+        params = [2*random.random()-1.0 for _ in  xrange(experiment.params_size)]
         with sm:
-            smach.StateMachine.add('N1', smach_explore.NeuralNetwork(params,world),
+            smach.StateMachine.add('N1', smach_explore.NeuralNetwork(params,world,experiment),
                                    transitions={'success' : 'N2',
                                                 "timeout": "timeout"},
                                    remapping = {'network_in' : 'net_value',
                                                 'network_out' :  'net_value'}
                                    )
-            smach.StateMachine.add('N2', smach_explore.NeuralNetwork(params,world),
+            smach.StateMachine.add('N2', smach_explore.NeuralNetwork(params,world,experiment),
                                    transitions={'success' : 'Mover',
                                                 "timeout": "timeout"},
                                    remapping = {'network_in' : 'net_value',
                                                 'network_out' :  'net_value'}
                                    )
-            smach.StateMachine.add('Mover', smach_explore.RobotMove(world),
+            smach.StateMachine.add('Mover', smach_explore.RobotMove(world,experiment),
                                    transitions={'success' : 'ExitSuccess',
                                                 "timeout":  "timeout",
                                                 "failure" : "N1"},
                                    remapping = {'move_pos' : 'net_value',}
                                    )
-            smach.StateMachine.add('ExitSuccess', smach_explore.ExitSuccess(world),
+            smach.StateMachine.add('ExitSuccess', smach_explore.ExitSuccess(world,experiment),
                                    transitions={'success' : 'success',
                                                 "timeout":  "timeout",
                                                 "failure" : "N1"},                                   
@@ -348,19 +350,20 @@ class StateMachineTests(unittest.TestCase):
                                           "timeout"])
         world = GraspingWorld()
         world.create_with_fixed_robot()
-        
+        experiment = smach_explore.ExperimentSetup()
+        experiment.initialize()
         nstates = 10
         with sm:
             
             for sgh in xrange(nstates-1):
                 params = [random.random() for _ in xrange(6)]
             
-                smach.StateMachine.add('R_'+str(sgh), smach_explore.RandomMove(params,world),
+                smach.StateMachine.add('R_'+str(sgh), smach_explore.RandomMove(params,world,experiment),
                                        transitions={'success' : 'E_'+str(sgh),
                                                     'failure' : 'E_'+str(sgh),
                                                     "timeout": "timeout"},
                                        )
-                smach.StateMachine.add('E_'+str(sgh), smach_explore.ExitSuccess(world),
+                smach.StateMachine.add('E_'+str(sgh), smach_explore.ExitSuccess(world,experiment),
                                        transitions={'success' : 'success',
                                                     "timeout":  "timeout",
                                                     "failure" : "R_"+str(sgh+1)},                                   
@@ -368,11 +371,11 @@ class StateMachineTests(unittest.TestCase):
             
             params = [random.random() for _ in xrange(6)]
         
-            smach.StateMachine.add('R_'+str(nstates-1), smach_explore.RandomMove(params,world),
+            smach.StateMachine.add('R_'+str(nstates-1), smach_explore.RandomMove(params,world,experiment),
                                    transitions={'success' : 'E_'+str(nstates-1),
                                                 "timeout": "timeout"},
                                    )
-            smach.StateMachine.add('E_'+str(nstates-1), smach_explore.ExitSuccess(world),
+            smach.StateMachine.add('E_'+str(nstates-1), smach_explore.ExitSuccess(world,experiment),
                                    transitions={'success' : 'success',
                                                 "timeout":  "timeout",
                                                 "failure" : "failure"},                                   
@@ -382,7 +385,9 @@ class StateMachineTests(unittest.TestCase):
         print "Random mover outcome: ", outcome
     
     def test_factory(self):
-        factory = smach_explore.ExplorerFactory()
+        experiment = smach_explore.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_explore.ExplorerFactory(experiment)
         world = factory.world
         genome = graph_genome.GraphGenome(50, factory.node_degrees,
                                           factory.node_params)
@@ -402,7 +407,9 @@ class StateMachineTests(unittest.TestCase):
 #        print "RobotState: ", world.robot.pos, " ", world.robot.th
     
     def test_factory2(self):
-        factory = smach_explore.ExplorerFactory2()
+        experiment = smach_explore.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_explore.ExplorerFactory(experiment)
         world = factory.world
         genome = graph_genome.GraphGenome(50, factory.node_degrees,
                                           factory.node_params)
@@ -422,7 +429,9 @@ class StateMachineTests(unittest.TestCase):
         successess = 0
         
         for trial in xrange(steps):
-            factory = smach_explore.ExplorerFactory()
+            experiment = smach_explore.ExperimentSetup()
+            experiment.initialize()
+            factory = smach_explore.ExplorerFactory(experiment)
             world = factory.world
             genome = graph_genome.GraphGenome(50, factory.node_degrees,
                                               factory.node_params)
@@ -447,7 +456,9 @@ class StateMachineTests(unittest.TestCase):
         successess = 0
         
         for trial in xrange(steps):
-            factory = smach_explore.ExplorerFactory2()
+            experiment = smach_explore.ExperimentSetup()
+            experiment.initialize()
+            factory = smach_explore.ExplorerFactory(experiment)
             world = factory.world
             genome = graph_genome.GraphGenome(50, factory.node_degrees,
                                               factory.node_params)

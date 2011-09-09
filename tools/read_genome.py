@@ -58,15 +58,15 @@ if __name__ == "__main__":
         sys.exit()
         
     with open(options.input_file, "r") as f:
-        genome, names_mapping, transitions_mapping = cPickle.load(f)
+        genome, factory, experiment = cPickle.load(f)
         
         print "Generation: ", genome.generation
         print "Score: ", genome.score
 #        print "Genome: ", genome
         print "Len: ", len(genome)
         
-        G = convert_chromosome_pygraphviz(genome, names_mapping, 
-                                  transitions_mapping)
+        G = convert_chromosome_pygraphviz(genome, factory.names_mapping, 
+                                  factory.transitions_mapping)
         G.write(options.output_file)
         
 #        sm = convert_chromosome_smach(genome, 

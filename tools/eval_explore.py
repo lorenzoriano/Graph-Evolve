@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
         
     with open(options.input_file, "r") as f:
-        genome, names_mapping, transitions_mapping = cPickle.load(f)
+        genome, factory, experiment = cPickle.load(f)
     
     ntrials = 5000
     succs = 0
@@ -57,13 +57,13 @@ if __name__ == "__main__":
     all_objects = []
 #    smach_explore.max_transitions = 100
     for _ in xrange(ntrials):
-        factory = smach_explore.ExplorerFactory()
         
 #        world = factory.world
 #        world.create_fixed_table( (3.5,-1.0) )
 #        world.objects = []
 #        world.create_object_on_table()
         
+        factory = smach_explore.ExplorerFactory(experiment)
         sm = convert_chromosome_smach(genome, 
                                   factory.names_mapping, 
                                   factory.transitions_mapping, 
@@ -76,7 +76,6 @@ if __name__ == "__main__":
         all_objects.append(factory.world.objects[0].pos)
     
     print "Successess: ", float(succs) / float(ntrials)
-    print "Robot positions:"
     
     all_poses = np.array(all_poses)
     all_objects = np.array(all_objects)

@@ -35,13 +35,23 @@ smach.set_loggers(null_print,
                   null_print)
 
 
+experiment = smach_explore.ExperimentSetup()
+
+experiment.max_transitions = 30
+experiment.network_hidden_size = 0
+
+experiment.pop_size = 50
+experiment.num_trials = 300
+experiment.stop_elitism = False
+experiment.poolsize = 100
+experiment.migration_rate = 1
+experiment.migration_size = 1
+
+experiment.initialize()
+
 def single_try(chromosome, **args):
     
-    factory = smach_explore.ExplorerFactory()
-    world = factory.world
-    
-    dist_init = world.robot.dist(world.objects[0]) 
-    
+    factory = smach_explore.ExplorerFactory(experiment)
     
     sm = convert_chromosome_smach(chromosome, 
                                   factory.names_mapping, 
@@ -58,17 +68,15 @@ def single_try(chromosome, **args):
         return 1.0
     else:
         return 0.0
-        
-
 
 def eval_func(chromosome, **args):
-    return sum(single_try(chromosome, **args) for _ in xrange(num_trials) ) / num_trials
+    return sum(single_try(chromosome, **args) 
+               for _ in xrange(experiment.num_trials) ) / experiment.num_trials
 
-freq_stats = 10
 
 def stepCallback(ga_engine):
     generation = ga_engine.getCurrentGeneration()
-    if generation % freq_stats == 0:
+    if generation % experiment.freq_stats == 0:
         
         comm = MPI.COMM_WORLD
         if comm.rank == 0:
@@ -86,7 +94,8 @@ def stepCallback(ga_engine):
                                              filename)
                                             )
                 file = open(wholepath,"wb")
-                cPickle.dump((best, names_mapping, transitions_mapping), 
+                factory = smach_explore.ExplorerFactory(experiment)
+                cPickle.dump((best, factory, experiment), 
                              file, 
                              protocol=cPickle.HIGHEST_PROTOCOL)
                 file.close()
@@ -109,51 +118,40 @@ if __name__ == "__main__":
     random.seed(time.time() * comm.rank)
     
 
-    num_nodes= 100
-    pop_size = 10
-#    poolsize = int(pop_size / 10.)
-    poolsize = pop_size
-    migration_size = 1
-    migration_rate = 1
-    elitism_size = 1
-    generations = 5000
-    num_trials = 300
-    stop_elitism = True
-    
-    factory = smach_explore.ExplorerFactory()
+    factory = smach_explore.ExplorerFactory(experiment)
     node_degrees = factory.node_degrees
     node_params = factory.node_params
     names_mapping = factory.names_mapping
     transitions_mapping = factory.transitions_mapping
     
-    genome = graph_genome.GraphGenome(num_nodes, node_degrees, node_params)
+    genome = graph_genome.GraphGenome(experiment.num_nodes, node_degrees, node_params)
     genome.evaluator.set(eval_func)
     
     ga = GSimpleGA.GSimpleGA(genome)
     
-    if stop_elitism:
+    if experiment.stop_elitism:
         ga.setElitism(False)
     else:
         ga.setElitism(True)
-        ga.setElitismReplacement(elitism_size)
+        ga.setElitismReplacement(experiment.elitism_size)
     
     ga.selector.set(Selectors.GRouletteWheel)
 #    ga.setSortType(Consts.sortType["raw"])
     
-    ga.setGenerations(generations)
-    ga.setPopulationSize(pop_size)
-    ga.setCrossoverRate(0.1)
-    ga.setMutationRate(0.1)
-    ga.getPopulation().setParams(tournamentPool = poolsize)
-    genome.setParams(p_del=0.01, p_add=0.3)
+    ga.setGenerations(experiment.generations)
+    ga.setPopulationSize(experiment.pop_size)
+    ga.setCrossoverRate(experiment.crossover_rate)
+    ga.setMutationRate(experiment.mutation_rate)
+    ga.getPopulation().setParams(tournamentPool = experiment.poolsize)
+    genome.setParams(p_del=experiment.p_del, p_add=experiment.p_del)
 
     ga.setMinimax(Consts.minimaxType["maximize"])
 
     if comm.size > 1:
         migrator = MpiMigration.MPIMigrator()
         migrator.setGAEngine(ga)
-        migrator.setNumReplacement(migration_size)
-        migrator.setMigrationRate(migration_rate)
+        migrator.setNumReplacement(experiment.migration_size)
+        migrator.setMigrationRate(experiment.migration_rate)
         migrator.selector.set(Selectors.GRankSelector)
 #        migrator.selector.set(Selectors.GRouletteWheel)
 
@@ -166,24 +164,24 @@ if __name__ == "__main__":
         os.mkdir(dirname)
         ga.setParams(dirname=dirname)
         
-        print "Initial num nodes: ", num_nodes
-        print "Pop Size: ", pop_size
+        print "Initial num nodes: ", experiment.num_nodes
+        print "Pop Size: ", experiment.pop_size
         print "Number of island: ", comm.size
-        print "Tot number of individuals: ", pop_size * comm.size
-        print "Tournament Size: ", poolsize
-        print "Migration Size: ", migration_size
-        print "Migration frequency: ", migration_rate
-        if not stop_elitism:
-            print "Elitism Size: ", elitism_size
+        print "Tot number of individuals: ", experiment.pop_size * comm.size
+        print "Tournament Size: ", experiment.poolsize
+        print "Migration Size: ", experiment.migration_size
+        print "Migration frequency: ",experiment.migration_rate
+        if not experiment.stop_elitism:
+            print "Elitism Size: ", experiment.elitism_size
         else:
             print "NO ELITISM"
-        print "Number of Generations: ", generations
-        print "Number of trials: ", num_trials
+        print "Number of Generations: ", experiment.generations
+        print "Number of trials: ", experiment.num_trials
         
 
     # Do the evolution
     if comm.rank == 0:
-        ga.evolve(freq_stats = freq_stats)
+        ga.evolve(freq_stats = experiment.freq_stats)
     else:
         ga.evolve(freq_stats = 0)
 
