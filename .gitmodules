@@ -4,3 +4,6 @@
 [submodule "src/pyevolve"]
 	path = src/pyevolve
 	url = /home/pezzotto/Projects/Pyevolve
+[submodule "src/rbfnetwork"]
+	path = src/rbfnetwork
+	url = /home/pezzotto/Projects/PyRBFNetwork2
