@@ -86,6 +86,17 @@ class Object(object):
         return math.sqrt( (self.pos[0] - obj.pos[0])**2 + 
                           (self.pos[1] - obj.pos[1])**2
                         )
+    
+    def create_roto_translation(self, trans, rot):
+        newobj = copy.copy(self)
+        newobj.pos = (self.pos[0] - trans[0],
+                      self.pos[1] - trans[1],
+                      self.pos[2] - trans[2])
+        newobj.pos = (newobj.pos[0]*math.cos(rot) + newobj.pos[1]*math.sin(rot),
+                      -newobj.pos[0]*math.sin(rot) + newobj.pos[1]*math.cos(rot),
+                      newobj.pos[2])
+        newobj.calculate_boundaries()
+        return newobj
 
 class Robot(Object):
     def __init__(self, 
@@ -110,9 +121,21 @@ class Robot(Object):
                                     )
         if th is not None:
             self.th = th
-            return
-        
-        self.starting_th = random.uniform(max_th, min_th)
+        else:
+            self.starting_th = random.uniform(max_th, min_th)
+            
+        self._torso_height = random.uniform(0.012, 0.3)        
+    
+    def get_torso(self):
+        return self._torso_height
+    def set_torso(self, value):
+        if value < 0.012:
+            value = 0.012
+        elif value > 0.3:
+            value = 0.3
+        self._torso_height = value
+    
+    torso_height =  property(get_torso, set_torso)
     
     def initialize(self,
                    max_w = 0.5,
@@ -164,6 +187,18 @@ class Robot(Object):
             if seen:
                 return True
         return False
+
+    def can_grasp(self, obj, net, normalizer):
+        if not self.sees(obj):
+            return False
+        
+        obj = obj.create_roto_translation(self.pos, self.th)
+        netinput = obj.pos + (self.torso_height,)
+        netinput = normalizer.normalize(netinput)
+        netout = net.safe_output(netinput, default_class = 0, thr = 0.5)
+        ret = netout[0] != 0
+        return ret[0]
+        
 
 class GraspingWorld(object):
     def __init__(self,
@@ -227,7 +262,7 @@ class GraspingWorld(object):
                             min_z = 0)
         
         width = (0.3, 1.2)
-        height = (0.3, 1.0)
+        height = (0.70, 0.80)
         length = (0.3,  1.2)
         
         self.table.initialize(width[1], 
@@ -354,6 +389,24 @@ def visibility_stats(num_trials = 1000):
         
         if world.robot.sees_any(world.objects):
             num_visibles += 1
+    
+    return float(num_visibles) / float(num_trials)
+
+def graspability_stats(net, normalizer, num_trials = 1000):
+   
+    num_visibles = 0
+    
+    for _ in xrange(num_trials):
+        world = GraspingWorld()
+        world.create_table()
+        world.create_object_on_table()
+        world.create_robot(require_not_visible=False)
+        world.robot.torso_height = 0.176
+        
+        if world.robot.can_grasp(world.objects[0], net, normalizer):
+            num_visibles += 1
+            print "ROBOT: ", world.robot.pos, " th: ", world.robot.th
+            print "Object: ", world.objects[0].pos
     
     return float(num_visibles) / float(num_trials)
 

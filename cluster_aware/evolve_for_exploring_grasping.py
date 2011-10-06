@@ -1,9 +1,14 @@
 import sys
-sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src')
-sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src\\pyevolve')
+import os
 
-sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
-sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
+if os.name == "posix":
+    sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
+    sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/rbfnetwork')
+    sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
+else:
+    sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src')
+    sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src\\pyevolve')
+    
 
 from pyevolve import GSimpleGA
 from pyevolve import G1DList
@@ -16,7 +21,7 @@ from pyevolve import Consts
 import graph_evolve
 from graph_evolve import graph_genome
 import smach
-from graph_evolve import smach_explore
+from graph_evolve import smach_explore_grasp
 from graph_evolve.chromosome_smach import convert_chromosome_smach
 
 import cPickle
@@ -35,28 +40,46 @@ smach.set_loggers(null_print,
                   null_print)
 
 
-experiment = smach_explore.ExperimentSetup()
+experiment = smach_explore_grasp.ExperimentSetup()
 
-experiment.max_transitions = 30
-experiment.network_hidden_size = 0
-experiment.net_evolutions = 20
-experiment.max_w = 4.0
-experiment.min_w = -4.0
+experiment.max_transitions = 50
+experiment.network_hidden_size = 3
+experiment.net_evolutions = 30
+experiment.max_w = 3.0
+experiment.min_w = -3.0
+experiment.num_nodes = 20
 
-experiment.pop_size = 200
-experiment.num_trials = 200
-experiment.stop_elitism = True
-experiment.poolsize = 200
-experiment.migration_rate = 10
-experiment.migration_size = 10
+experiment.pop_size = 10
+experiment.num_trials = 300
+experiment.stop_elitism = False
+experiment.poolsize = 10
+experiment.migration_rate = 1
+experiment.migration_size = 1
+experiment.crossover_rate = 0.1
+experiment.mutation_rate = 0.1
+experiment.p_add = 0.8
+experiment.p_del = 0.01
 
-experiment.note = "Low migration rate should increase niches."
+experiment.freq_stats = 10
+experiment.generations = 100000
+
+if os.name == "posix":
+    experiment.rbfnetworkpath = "/media/cluster_space/net_norm_v3.dat"
+    experiment.explorer_path = "/media/cluster_space/explorer_genome.dat"
+else:
+    experiment.rbfnetworkpath = "\\\\isrchn1\\userdata\\se15005594\\net_norm_v3.dat"
+    experiment.explorer_path = "\\\\isrchn1\\userdata\\se15005594\\explorer_genome.dat"
+
+
+
+experiment.name = "Evolve for exploring grasping"
+experiment.note = ""
 
 experiment.initialize()
 
 def single_try(chromosome, **args):
     
-    factory = smach_explore.ExplorerFactory(experiment)
+    factory = smach_explore_grasp.ExplorerFactory(experiment)
     
     sm = convert_chromosome_smach(chromosome, 
                                   factory.names_mapping, 
@@ -76,10 +99,11 @@ def single_try(chromosome, **args):
 
 def eval_func(chromosome, **args):
     return sum(single_try(chromosome, **args) 
-               for _ in xrange(experiment.num_trials) ) / experiment.num_trials
+               for _ in xrange(experiment.num_trials) ) / float(experiment.num_trials)
 
 
 def stepCallback(ga_engine):
+    
     generation = ga_engine.getCurrentGeneration()
     if generation % experiment.freq_stats == 0:
         
@@ -99,7 +123,7 @@ def stepCallback(ga_engine):
                                              filename)
                                             )
                 file = open(wholepath,"wb")
-                factory = smach_explore.ExplorerFactory(experiment)
+                factory = smach_explore_grasp.ExplorerFactory(experiment)
                 cPickle.dump((best, factory, experiment), 
                              file, 
                              protocol=cPickle.HIGHEST_PROTOCOL)
@@ -123,7 +147,7 @@ if __name__ == "__main__":
     random.seed(time.time() * comm.rank)
     
 
-    factory = smach_explore.ExplorerFactory(experiment)
+    factory = smach_explore_grasp.ExplorerFactory(experiment)
     node_degrees = factory.node_degrees
     node_params = factory.node_params
     names_mapping = factory.names_mapping
@@ -161,8 +185,8 @@ if __name__ == "__main__":
 #        migrator.selector.set(Selectors.GRouletteWheel)
 
         ga.setMigrationAdapter(migrator)
-    if comm.rank == 0:
-        ga.stepCallback.set(stepCallback)
+#    if comm.rank == 0:
+    ga.stepCallback.set(stepCallback)
     
     if comm.rank == 0:
         dirname = datetime.datetime.now().strftime("activity-%Y-%m-%d-%H-%M-%S/")
@@ -182,6 +206,10 @@ if __name__ == "__main__":
             print "NO ELITISM"
         print "Number of Generations: ", experiment.generations
         print "Number of trials: ", experiment.num_trials
+        print "Mutation rate: ", experiment.mutation_rate
+        print "Crossover rate: ", experiment.crossover_rate
+        print "P_add: ", experiment.p_add
+        print "P_del: ", experiment.p_del
         
 
     # Do the evolution

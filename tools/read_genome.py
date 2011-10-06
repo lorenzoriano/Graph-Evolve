@@ -2,6 +2,7 @@
 import sys
 sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
 sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
+sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/rbfnetwork')
 
 import cPickle
 from optparse import OptionParser
