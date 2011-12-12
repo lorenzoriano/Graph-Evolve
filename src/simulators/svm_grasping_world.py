@@ -4,7 +4,7 @@ import numpy as np
 
 
 class Object(object):
-    def __init__(self,pos, dims):
+    def __init__(self, pos, dims):
         self.starting_pos = pos
         self.__pos = pos
         self.width = dims[0]
@@ -12,6 +12,12 @@ class Object(object):
         self.height = dims[2]
         self.calculate_boundaries()
         self.initialized = True
+
+    def __repr__(self):
+        return "pos: %s, dims: %s, boundaries %s" % (self.__pos,
+			(self.width, self.length, self.height),
+            (self.x_boundaries, self.y_boundaries, self.z_boundaries)
+			)
 
     def get_pos(self):
         return self.__pos
@@ -55,35 +61,11 @@ class Object(object):
         return newobj
 
 class Robot(Object):
-    def __init__(self, pos, th,
+    def __init__(self, pos,
                  ):
         
         super(Robot, self).__init__(pos, (0.5, 0.5, 1.5))
-        self.th = th
             
-    
-    def sees(self, obj):
-        
-        new_x = obj.pos[0] - self.pos[0]
-        new_y = obj.pos[1] - self.pos[1]
-        
-        newth = math.atan2(new_y, new_x) - self.th
-        
-        if newth > math.pi:
-            newth -= 2.*math.pi 
-        if newth < -math.pi:
-            newth += 2.*math.pi
-        angle_vis = -math.pi/4. <= newth <= math.pi/4.
-        
-        dist = math.sqrt( (self.pos[0] - obj.pos[0])**2 + 
-                          (self.pos[1] - obj.pos[1])**2
-                        )
-        
-        return angle_vis and (dist < 1.5)
-
-    def sees_any(self, obj_list):
-        return any(self.sees(o) for o in obj_list)
-      
 class GraspingWorld(object):
     def __init__(self,
                 object_transformation,
@@ -106,8 +88,9 @@ class GraspingWorld(object):
     def __create_table(self, pos, dims):
         self.table = Object(pos, dims)
 
-    def create_table(self, x_min, x_max, y_min, y_max):
-        self.table_vec = np.array((x_min, x_max, y_min, y_max))
+    def create_table(self, dims):
+    	x_min, y_min, x_max, y_max = dims
+        self.table_vec = np.array(dims)
         x = x_min + (x_max - x_min)/2.
         y = y_min + (y_max - y_min)/2.
         z = 0.76
@@ -122,27 +105,55 @@ class GraspingWorld(object):
         self.obj_vec = np.array(pos)
         obj = Object( pos, (0.1,0.1,0.1))
         self.obj = obj
-        
-    def move_robot(self, dx, dy, dth):
-       
-        movement = (dx, dy, dth)
+    
+    def enlarged_table(self):
+        newtable = Object( self.table.pos, (self.table.width + 0.5,
+                                            self.table.length + 0.5,
+                                            self.table.height + 1.5,
+                                           )
+                         )
+        return newtable
 
-        robot = Robot(movement, 0)
-        if self.objects_collide(robot, self.table):
+    def move_robot(self, movement):
+
+        if self.line_intersect_obj((0,0,0), movement,
+                                    self.enlarged_table()):
             return False
+
+        #robot = Robot(movement)
+        #if self.objects_collide(robot, self.table):
+        #    return False
 
         self.robot_positions.append(movement)
         inpt_vec_table = np.hstack( (self.table_vec, movement) )
         newtable = self.table_transformation.predict( inpt_vec_table).ravel()
-        self.create_table(newtable[0], newtable[1], 
-                                    newtable[2], newtable[3])
+        self.create_table((newtable[0], newtable[1], 
+                                    newtable[2], newtable[3]))
 
         inpt_vec_obj = np.hstack( (self.obj_vec, movement) )
         newobj = self.object_transformation.predict(inpt_vec_obj).ravel()
         self.create_object( (newobj[0], newobj[1], newobj[2]) )
         
         return True
-    
+
+    def net_input(self):
+        return np.hstack((self.obj_vec, self.table_vec))
+
+    def can_grasp(self):
+
+        #I HATE MYSELF FOR THIS!
+        svm_input = (self.obj_vec[0],
+         self.obj_vec[1],
+         self.obj_vec[2],
+         self.table_vec[0],
+         self.table_vec[2],
+         self.table_vec[1],
+         self.table_vec[3],		     
+        )
+        svm_out = self.grasping_tester.predict(svm_input)
+        return svm_out[0] == 1.0
+
+
     @staticmethod
     def __objects_collide(obj1, obj2):
         '''
@@ -164,4 +175,30 @@ class GraspingWorld(object):
     def objects_collide(obj1, obj2):
         return (GraspingWorld.__objects_collide(obj1, obj2) or 
                 GraspingWorld.__objects_collide(obj2, obj1))
+
+
+    @staticmethod
+    def line_intersect_obj(l_start, l_end, obj):
+        def are_intervals_intersecting(a0, a1, b0, b1):
+            if (a1 < a0):
+                a1, a0 = a0, a1
+    
+            if (b1 < b0):
+                b1, b0 = b0, b1
+
+            if b0 < a0:
+                return a0 <= b1
+            else:
+                return b0 <= a1
+
+        if not are_intervals_intersecting(l_start[0], l_end[0], 
+                obj.x_boundaries[0], obj.x_boundaries[1]):
+            return False
+        if not are_intervals_intersecting(l_start[1], l_end[1], 
+                obj.y_boundaries[0], obj.y_boundaries[1]):
+            return False
+        return True
+        
+
+
     
