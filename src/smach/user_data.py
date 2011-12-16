@@ -39,6 +39,9 @@ class UserData(object):
                 rmk = remapping[k]
             self[rmk] = copy.copy(ud[k])
 
+    def clear(self):
+        self._data.clear()
+
     def __getitem__(self, key):
         return self.__getattr__(key)
 
