@@ -11,6 +11,8 @@ if version.LooseVersion(nx.__version__) < version.LooseVersion("1.5"):
 
 import random
 import exceptions
+import math
+from collections import defaultdict
 
 class NodeRepresentation():
     '''
@@ -52,7 +54,11 @@ def graph_crossover(_, **args):
 
     mom = args["mom"]
     dad = args["dad"]
-    
+
+    r = random.random()
+    if (r>mom.crossover_prob) or (r>dad.crossover_prob):
+        return (mom.clone(), dad.clone())
+  
     sister = mom.clone()
     brother = dad.clone()
     
@@ -109,32 +115,36 @@ def graph_crossover(_, **args):
     sister.fix_starting_node()
     brother.fix_starting_node()
     
+    sister.mutations_history["crossover"] += 1
+    brother.mutations_history["crossover"] += 1
     return (sister, brother)
 
 def graph_mutator(genome, **args):
     '''
     Mutate the whole gene
     '''
-    pmut = args["pmut"]
-    p_add = genome.getParam("p_add", 0)
-    p_del = genome.getParam("p_del", 0)
+    p_add = genome.add_prob
+    p_del = genome.del_prob
 
     #adding a node
     if random.random() < p_add:
+        genome.mutations_history["add_random"] += 1
         genome.add_random_node()
     #removing a node
     if random.random() < p_del:
+        genome.mutations_history["del_random"] += 1
         genome.remove_random_node()
     
     mutated = 0
     #in-place mutations
     for node in genome.graph:
-        if random.random() < pmut:
-            mutated += 1
-            genome.mutate_node(node, pmut)
+        mutated += 1
+        genome.mutate_node(node)
             
     #changing the starting node
-    if (random.random() < pmut) or (genome.starting_node not in genome.graph):
+    p_new_start = genome.new_start_prob
+    if (random.random() < p_new_start) or (genome.starting_node not in genome.graph):
+        genome.mutations_history["random_starting_node"] += 1
         genome.select_random_starting_node()
 
     genome.fix_starting_node()
@@ -189,9 +199,22 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         self.generation = 0
         self.starting_node = 0
         
+        self.crossover_prob = None
+        self.add_prob = None
+        self.del_prob = None
+        self.new_start_prob = None
+        self.big_change_prob = None
+        self.change_edge_prob = None
+        self.mutate_par_sigma = None
+        self.mutate_par_prob= None
+
+        self.drifting_sigma = None
+        
         self.crossover.set(graph_crossover)
         self.mutator.set(graph_mutator)
         self.initializator.set(graph_initializer)
+
+        self.mutations_history = defaultdict(int)
 
     def setup_node(self, node):
         '''
@@ -202,18 +225,34 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         params.mutator.set(pyevolve.Mutators.G1DListMutatorRealGaussian)
         params.initializator.set(pyevolve.Initializators.G1DListInitializatorReal)
         params.setParams(rangemin = 0, rangemax=1.0, 
-                         gauss_mu = 0.0, gauss_sigma=0.05)
+                         gauss_mu = 0.0, gauss_sigma=self.mutate_par_sigma)
         params.initialize()
                 
-    def mutate_node(self, node, pmut):
+    def mutate_node(self, node):
         '''
         Mutate a single node
         @param node: the node to mutate
-        @param pmut: the probability to mutate the whole node structure (type
         and out-edges)
         '''
+        
+        self.crossover_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.add_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.del_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.new_start_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.big_change_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.change_edge_prob *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.mutate_par_sigma *= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
+        self.mutate_par_prob*= math.exp(random.normalvariate(0,
+            self.drifting_sigma))
 
-        if random.random() < pmut:
+        if random.random() < self.big_change_prob:
             #The attributes change
             attrs = {}
             type_id = random.randint(0,  self.num_node_types)
@@ -228,21 +267,28 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
             for n in xrange(self.node_degrees[type_id]):
                 destination = random.choice(self.graph.nodes())
                 self.graph.add_edge(node, destination, action_number=n)
+
+            self.mutations_history["big_change"] += 1
         else:
             #change only a random edge:
             
             if self.graph.out_degree(node) == 0: #really nothing to change here
                 return
-            u,v,key,attrs = random.choice(self.graph.edges(
-                                                    node,
-                                                    data=True,
-                                                    keys=True))
-            self.graph.remove_edge(u, v, key)
-            destination = random.choice(self.graph.nodes())
-            self.graph.add_edge(node, destination, attr_dict = attrs)
+
+            if random.random() < self.change_edge_prob:
+                u,v,key,attrs = random.choice(self.graph.edges(
+                                                        node,
+                                                        data=True,
+                                                        keys=True))
+                self.graph.remove_edge(u, v, key)
+                destination = random.choice(self.graph.nodes())
+                self.graph.add_edge(node, destination, attr_dict = attrs)
+                self.mutations_history["change_edge"] += 1
         
             #mutate the parameters
-            self.graph.node[node]["parameters"].mutate(pmut=pmut)
+            n = self.graph.node[node]["parameters"].mutate(pmut=self.mutate_par_prob)
+            if n > 0:
+                self.mutations_history["parameters"] += 1
             
     def prune_non_connected(self):
         '''
@@ -437,6 +483,19 @@ class GraphGenome(pyevolve.GenomeBase.GenomeBase):
         genome.generation = self.generation + 1
         genome.starting_node = self.starting_node
         
+        genome.crossover_prob = self.crossover_prob 
+        genome.add_prob = self.add_prob 
+        genome.del_prob = self.del_prob 
+        genome.new_start_prob = self.new_start_prob 
+        genome.big_change_prob = self.big_change_prob 
+        genome.change_edge_prob = self.change_edge_prob 
+        genome.mutate_par_sigma = self.mutate_par_sigma 
+        genome.mutate_par_prob= self.mutate_par_prob
+
+        genome.drifting_sigma = self.drifting_sigma 
+        
+        genome.mutations_history = self.mutations_history.copy()
+
     def clone(self):
         '''
         Clones self into a new genome
