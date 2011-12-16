@@ -81,7 +81,16 @@ class GraspingWorld(object):
         self.object_transformation = object_transformation
         self.table_transformation = table_transformation
         self.grasping_tester = grasping_tester
-   
+  
+    def reset(self):
+        self.table = None
+        self.table_vec= None
+        self.obj = None
+        self.obj_vec = None
+        self.time_step = 0
+        self.robot_positions = []
+
+
     def inc_time(self):
         self.time_step +=  1
 
@@ -137,12 +146,14 @@ class GraspingWorld(object):
         return True
 
     def net_input(self):
-        return np.hstack((self.obj_vec, self.table_vec))
+        if self.obj_vec is None:
+            raise ValueError("Object is none!")
+        elif self.table_vec is None:
+            raise ValueError("Table is none!")
 
-    def can_grasp(self):
-
-        #I HATE MYSELF FOR THIS!
-        svm_input = (self.obj_vec[0],
+         #I HATE MYSELF FOR THIS!
+        svm_input = (
+         self.obj_vec[0],
          self.obj_vec[1],
          self.obj_vec[2],
          self.table_vec[0],
@@ -150,9 +161,24 @@ class GraspingWorld(object):
          self.table_vec[1],
          self.table_vec[3],		     
         )
+        return np.array(svm_input)
+       #return np.hstack((self.obj_vec, self.table_vec))
+
+    def can_grasp(self):
+        #TODO add robot sees object
+        svm_input = self.net_input()
+
         svm_out = self.grasping_tester.predict(svm_input)
         return svm_out[0] == 1.0
 
+    def grasp_probability(self):
+        #TODO add robot sees object
+        svm_input = self.net_input()
+
+        probs = self.grasping_tester.predict_proba(svm_input)[0]
+
+        #class 1
+        return probs[1]
 
     @staticmethod
     def __objects_collide(obj1, obj2):
