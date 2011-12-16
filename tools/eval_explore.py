@@ -83,6 +83,3 @@ if __name__ == "__main__":
     plt.plot(all_poses[:,0], all_poses[:,1], 'b.', alpha=0.2)    
     plt.show()
     
-    
-        
-        
