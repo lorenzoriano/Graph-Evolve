@@ -3,7 +3,6 @@ import os
 if os.name == "posix":
     sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src')
     sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/pyevolve')
-    sys.path.append('/home/pezzotto/Projects/Graph-Evolve/src/rbfnetwork')
 else:
     sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src')
     sys.path.append('\\\\isrchn1\\userdata\\se15005594\\Graph-Evolve\\src\\pyevolve')
@@ -17,6 +16,22 @@ from pybrain.tools.shortcuts import buildNetwork
 import numpy as np
 
 from simulators.svm_grasping_world import Object, Robot, GraspingWorld
+import random
+from graph_evolve import  smach_svm_grasp
+import smach
+from graph_evolve import chromosome_smach
+from graph_evolve import graph_genome
+
+def null_print(_): pass
+smach.set_loggers(null_print, #info
+                  null_print, #warn
+                  null_print, #debug
+                  null_print) #error
+import math
+pi = math.pi
+pi2 = pi/2
+
+import heapq
 
 class BasicTests(unittest.TestCase):
     def setUp(self):
@@ -121,9 +136,9 @@ class BasicTests(unittest.TestCase):
         
         collisions = 0
         non_grasps = 0
+        simulator = GraspingWorld(self.objectSVR, self.tableSVR, 
+                             self.reachableSVC)
         for loc in nonzerolocs:
-            simulator = GraspingWorld(self.objectSVR, self.tableSVR, 
-                                 self.reachableSVC)
 
             obj = loc[:3]
             table = (loc[3], loc[5], loc[4], loc[6])
@@ -139,7 +154,36 @@ class BasicTests(unittest.TestCase):
 
         self.assertEqual(collisions,0)
         self.assertEqual(non_grasps,1)
-    
+   
+    def test_scoring(self):
+        data = cPickle.load(open("/media/isrc_private/Logs/TryToPushAndActionConsequence/training_trypush.pkl"))
+        locs = data[0]
+        res = data[1]
+        simulator = GraspingWorld(self.objectSVR, self.tableSVR, 
+                             self.reachableSVC)
+        nonzerolocs = locs[res.nonzero()[0],:]
+        collisions = 0
+        non_grasps = 0
+
+        for loc in nonzerolocs:
+
+            obj = loc[:3]
+            table = (loc[3], loc[5], loc[4], loc[6])
+            simulator.create_table(table)
+            simulator.create_object(obj)
+
+            score = simulator.grasp_probability()
+            if score < 0.5:
+                non_grasps += 1
+
+            if not simulator.move_robot((0,0,0)):
+                print "Location ", table, " not good"
+                collisions += 1
+        
+        self.assertEqual(collisions,0)
+        self.assertEqual(non_grasps,1)
+
+
     def test_neural_net(self):
         simulator = GraspingWorld(self.objectSVR, self.tableSVR, 
                              self.reachableSVC)
@@ -153,8 +197,10 @@ class BasicTests(unittest.TestCase):
 
         num_graspings = 0
         good_hiddens = []
-        good_params = []
-        for trial in xrange(100000):
+        good_movements = []
+        maxw = 3
+        minw = -3
+        for trial in xrange(60):
             simulator = GraspingWorld(self.objectSVR, self.tableSVR, 
                                  self.reachableSVC)
             
@@ -168,17 +214,22 @@ class BasicTests(unittest.TestCase):
             outclass = pybrain.structure.modules.SigmoidLayer
             net = buildNetwork(7, nhidden, 3, 
                     outclass=outclass)
-            net.params[:] = 6*np.random.random(net.params.shape) - 3.
-            dx, dy, dth = 2*net.activate(simulator.net_input()) - 1
+            
+            net.params[:] = (maxw-minw)*np.random.random(net.params.shape) + minw
+            dx, dy, dth = net.activate(simulator.net_input()) 
+            dx = dx 
+            dy = 2*dy - 1.0
+            dth = pi * dth - pi2
+
             simulator.move_robot( (dx,dy,dth) )
             if simulator.can_grasp():
                 num_graspings += 1
                 good_hiddens.append(nhidden)
-                good_params.append(net.params)
+                good_movements.append((dx, dy, dth))
 
         print "Num graspings: ", num_graspings 
         print "Good hiddens: ", good_hiddens
-        #print "Good params: ", good_params
+        print "Good movements: ", good_movements
 
     def test_line_intersect(self):
         table = Object(  (3,0,0), (2,2,1) )
@@ -212,9 +263,169 @@ class BasicTests(unittest.TestCase):
 
             self.assertEqual(ret_mov, ret_coll)
 
+class StateMachineTests(unittest.TestCase):
+    def test_simple(self):
+        sm = smach.StateMachine(outcomes=["success", 
+                                          "failure", 
+                                          "timeout"])
+        experiment = smach_svm_grasp.ExperimentSetup()
+        experiment.initialize()
+        world = GraspingWorld(
+                experiment.objectSVR,
+                experiment.tableSVR,
+                experiment.reachableSVC)
+        obj = [1.49350447,  0.22887855,  0.78522903 ] 
+        table = [ 0.93704832, -0.18190929, 2.14552283, 0.39354303]
 
+        world.create_table(table)
+        world.create_object(obj)
+
+        params = [random.random() 
+                for _ in  xrange(smach_svm_grasp.NeuralNetwork2.nparams)]
+        with sm:
+            smach.StateMachine.add('N1', smach_svm_grasp.NeuralNetwork2(
+                                   params,world,experiment),
+                                   transitions={'success' : 'Mover',
+                                                "timeout": "timeout"},
+                                   )
+            smach.StateMachine.add('Mover', smach_svm_grasp.RobotMove(
+                                   world,experiment),
+                                   transitions={'success' : 'ExitSuccess',
+                                                "timeout":  "timeout",
+                                                "failure" : "N1"},
+                                   )
+            smach.StateMachine.add('ExitSuccess', smach_svm_grasp.ExitSuccess(
+                                   world,experiment),
+                                   transitions={'success' : 'success',
+                                                "timeout":  "timeout",
+                                                "failure" : "N1"},
+                                   )
+
+        sm.execute()        
+    
+    def test_factory(self):
+        experiment = smach_svm_grasp.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_svm_grasp.SVMWorldFactory(experiment)
         
+        world = factory.world
+        obj = [1.49350447,  0.22887855,  0.78522903 ] 
+        table = [ 0.93704832, -0.18190929, 2.14552283, 0.39354303]
+
+        world.create_table(table)
+        world.create_object(obj)
+
+        genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                          factory.node_params)
+        genome.initialize()
+        
+        sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+        
+        sm.execute()
+
+    def test_random_genomes(self):
+        steps = 100
+        successess = 0
+        
+        experiment = smach_svm_grasp.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_svm_grasp.SVMWorldFactory(experiment)
+        
+        world = factory.world
+        obj = [1.49350447,  0.22887855,  0.78522903 ] 
+        table = [ 0.93704832, -0.18190929, 2.14552283, 0.39354303]
+
+        for trial in xrange(steps):
+            world.reset()
+            world.create_table(table)
+            world.create_object(obj)
+            genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                              factory.node_params)
+            genome.initialize()
+            sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+            if sm.execute() == "success":
+                successess += 1
+
+        print "success rate: ", float(successess) / float(steps)
+
+    def test_scoring(self):
+        steps = 100
+        scores = []
+        
+        experiment = smach_svm_grasp.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_svm_grasp.SVMWorldFactory(experiment)
+        
+        world = factory.world
+        obj = [1.49350447,  0.22887855,  0.78522903 ] 
+        table = [ 0.93704832, -0.18190929, 2.14552283, 0.39354303]
+
+        for trial in xrange(steps):
+            world.reset()
+            world.create_table(table)
+            world.create_object(obj)
+            genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                              factory.node_params)
+            genome.initialize()
+            sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+            sm.execute()
+            scores.append(world.grasp_probability())
+
+        print "10 best: ", heapq.nlargest(10,scores)
+        print "mean: ", np.mean(scores)
+        print "std: ", np.std(scores)
+
+    def test_fitness_function(self):
+        experiment = smach_svm_grasp.ExperimentSetup()
+        experiment.initialize()
+        factory = smach_svm_grasp.SVMWorldFactory(experiment)
+        world = factory.world
+        
+        genome = graph_genome.GraphGenome(50, factory.node_degrees,
+                                              factory.node_params)
+        genome.initialize()
+        sm = chromosome_smach.convert_chromosome_smach(genome, 
+                                                       factory.names_mapping, 
+                                                       factory.transitions_mapping, 
+                                                       factory.classes_mapping, 
+                                                       factory.data_mapping)
+
+        fitness = 0.0
+        critical_failures = 0
+        for inpt, outp in zip(experiment.test_input, experiment.test_output):
+            sm.userdata.clear() 
+            obj = inpt[:3]
+            table = inpt[3:]
+            world.reset()
+            world.create_object(obj)
+            world.create_table(table)
+            
+            outcome = sm.execute()
+            score = world.grasp_probability()
+            if outcome == "timeout":
+                score = score / 2
+
+            if outp and (outcome != "success"):
+                critical_failures += 1
+                score = 0
+            
+            fitness += score
+
+        print "Fitness: ", fitness, " crit failures: ", critical_failures
 
 if __name__ == "__main__":
     unittest.main()
+
 
