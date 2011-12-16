@@ -9,3 +9,4 @@ libpyrbfnet.so librbfnetwork.so
 lib*.so
 *.pyc
 cmake_install.cmake
+*.swp
