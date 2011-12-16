@@ -1,4 +1,3 @@
-import pyrecurrentnet
 import smach
 import math
 from simulators import svm_grasping_world
@@ -19,45 +18,33 @@ try:
 except AttributeError:
     sys.modules["__main__"].eval_func = eval_func
 
-
+pi = math.pi
+pi2 = pi/2
 class ExperimentSetup(object):
     def __init__(self):
-        self.network_input_size = 4
-        self.network_output_size = 4
-        self.network_hidden_size = 3
         
-        self.network_bias_size = None
-        self.network_total_size = None
-        self.params_size = None
-        
-        self.max_transitions = 40 
+        self.max_transitions = 10
         self.net_evolutions = 30
         
-        self.max_w = 3.
-        self.min_w = -3.
+        self.max_w = 4.
+        self.min_w = -4.
         
         self.date = ""
         self.note = ""
         self.name = ""
     
-        self.rbfnetworkpath = ""
-        self.rbfnet = None
-        self.normalizer = None
-    
-        self.explorer_path = ""
-        self.explorer_genome = None
-        self.explorer_experiment = None    
-        
+        self.tableSVR_path = "/media/isrc_private/Logs/TryToPushAndActionConsequence/table_changesSVR.pkl"
+        self.objectSVR_path = "/media/isrc_private/Logs/TryToPushAndActionConsequence/object_changesSVR.pkl"
+        self.reachableSVC_path = "/media/isrc_private/Logs/TryToPushAndActionConsequence/reachableSVC.pkl"
+        self.testingdata_path = "/media/isrc_private/Logs/TryToPushAndActionConsequence/given_fsm_2011-11-25-18-23-28.pkl"
+
         #actual evolution bits        
         self.num_nodes= 100
         self.pop_size = 10
         
         self.poolsize = self.pop_size
-        self.migration_size = 1
-        self.migration_rate = 1
         self.elitism_size = 1
         self.generations = 5000
-        self.num_trials = 300
         self.stop_elitism = False
         self.freq_stats = 10
         self.crossover_rate = 0.1
@@ -68,46 +55,22 @@ class ExperimentSetup(object):
     
     def initialize(self):
         self.date = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S/")
-        self.network_bias_size = (self.network_hidden_size + 
-                                  self.network_output_size)
-        self.network_total_size = (self.network_input_size + 
-                                   self.network_hidden_size + 
-                                   self.network_output_size)
-        self.params_size = ((self.network_total_size - self.network_input_size)*
-                            self.network_total_size + self.network_bias_size)
-       
-        f = open(self.rbfnetworkpath, "rb")
-        net, normalizer = cPickle.load(f)
-        self.rbfnet = net
-        self.normalizer = normalizer
+        self.tableSVR = cPickle.load(open(self.tableSVR_path))
+        self.objectSVR = cPickle.load(open(self.objectSVR_path))
+        self.reachableSVC = cPickle.load(open(self.reachableSVC_path))
         
-        f = open(self.explorer_path, "rb")        
-        genome, factory, experiment = cPickle.load(f)
-        
-        self.explorer_genome = genome
-        self.explorer_experiment = experiment
+        data = cPickle.load(open(self.testingdata_path))
+        self.test_input = data[0]
+        self.test_input[:,[4,5]] = self.test_input[:,[5,4]]
+        #objx, objy, objz, table_minx, table_miny, table_maxx, table_maxy
+        self.test_output = data[1]
 
 class NeuralNetwork(smach.State):
-    def execute(self, userdata):
-        self.world.inc_time()
-        if self.world.time_step >= self.experiment.max_transitions:
-            return "timeout"
-        
-        
-        inpt = self.world.net_input()        
-        dx, dy, dth = 2*self.net.activate(inpt) - 1
-            
-        userdata.network_out = (dx, dy, dth)
-        return "success"
- 
-class NeuralNetwork2(NeuralNetwork):
-    
     outcomes = ["success", "timeout"]
     input_keys = []
     output_keys = ["network_out"]
-    nparams = 25
     
-    def __init__(self, params,  world, experiment):
+    def __init__(self, nhidden, params,  world, experiment):
         smach.State.__init__(self,
                              outcomes = self.outcomes,
                              input_keys = self.input_keys,
@@ -117,12 +80,36 @@ class NeuralNetwork2(NeuralNetwork):
         
         newparams = [ (experiment.max_w-experiment.min_w)*p +
                      experiment.min_w for p in params ]
-        
-        self.net = buildNetwork(7,2,3, 
+       
+        self.net = buildNetwork(7,nhidden,3, 
                         outclass = pybrain.structure.modules.SigmoidLayer)
         self.net.params[:] = newparams
         self.experiment = experiment
+    
+    def execute(self, userdata):
+        self.world.inc_time()
+        if self.world.time_step >= self.experiment.max_transitions:
+            return "timeout"
         
+        
+        inpt = self.world.net_input()
+        #print "INPUT: ", inpt
+        dx, dy, dth = self.net.activate(inpt)
+        dx = dx 
+        dy = 2*dy - 1.0
+        dth = pi * dth - pi2
+        #print "Output: ", (dx, dy, dth)
+            
+        userdata.network_out = (dx, dy, dth)
+        return "success"
+ 
+class NeuralNetwork2(NeuralNetwork):
+    
+    nparams = 25
+    
+    def __init__(self, params,  world, experiment):
+        NeuralNetwork.__init__(self, 2, params, world, experiment)
+       
        
 class RobotMove(smach.State):
     outcomes = ['success', "failure", "timeout"]
@@ -176,13 +163,15 @@ class ExitSuccess(smach.State):
         else:
             return "failure"
 
-class ExplorerFactory(object):
+class SVMWorldFactory(object):
     def __init__(self, experiment):
         self.world = svm_grasping_world.GraspingWorld(
-                experiment.object_transformation,
-                experiment.table_transformation,
-                experiment.grasping_tester)
+                experiment.objectSVR,
+                experiment.tableSVR,
+                experiment.reachableSVC)
+       
         
+
         self.names_mapping = ["NeuralNetwork2", 
                               "RobotMove", 
                               "ExitSuccess", 
@@ -203,16 +192,24 @@ class ExplorerFactory(object):
                                     for name, class_ in  all_classes.iteritems()
                                        )
         self.transitions_mapping["ExitSuccess"]= ["failure"] #success it the end of the FSM
-        self.data_mapping = {}
+        self.data_mapping = dict((name, {}) for name in self.names_mapping)
         
         self.node_degrees = [len(self.transitions_mapping[name]) 
                             for name in self.names_mapping]
         
-        self.node_params = [self.classes_mapping[name].nparams 
+        self.node_params = [all_classes[name].nparams 
                             for name in self.names_mapping]
+
+        #print
+        #print "names_mapping: ", self.names_mapping
+        #print "classes_mapping: ", self.classes_mapping
+        #print "transitions_mapping: ", self.transitions_mapping
+        #print "data_mapping: ", self.data_mapping
+        #print "node_params: ", self.node_params
+        #print
     
     def __new__(cls, explorer):
-        instance  = super(ExplorerFactory, cls).__new__(cls)
+        instance  = super(SVMWorldFactory, cls).__new__(cls)
         instance.__init__(explorer)
         return instance        
     
@@ -227,5 +224,4 @@ class ExplorerFactory(object):
     
     def __setstate__(self, state):
         pass
-        
         
